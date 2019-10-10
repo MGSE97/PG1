@@ -1,0 +1,1 @@
+Camera camera = Camera( 640, 480, Vector3( -140.0f, -175.0f, 110.0f ), Vector3( 0.0f, 0.0f, 40.0f ), DEG2RAD( 42.185f ) );
