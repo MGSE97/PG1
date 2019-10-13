@@ -130,10 +130,9 @@ RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray)
 	return ray_hit;
 }
 
-Color4f Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material)
+Vector3 Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material)
 {
 	Vector3 color = Vector3{ 0.5,0.2,0.55 };
-	float alpha = 1.0f;
 	if(material != nullptr)
 	{
 		// Get Difuse
@@ -170,7 +169,7 @@ Color4f Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Mate
 			lightPower_.z * specular * powf(max(reflectedVec.DotProduct(cam), .0f), material->shininess);
 	}
 
-	return Color4f{color.x, color.y, color.z, alpha};
+	return color;
 }
 
 void Raytracer::get_geometry_data(RTCRayHit ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material)
@@ -209,11 +208,8 @@ RTCRay generate_ray(Vector3& hit, Vector3& direction)
 	return ray;
 }
 
-Color4f Raytracer::get_pixel( const int x, const int y, const float t )
+bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, int bump)
 {
-	// TODO generate primary ray and perform ray cast on the scene
-	RTCRayHit ray_hit = prepare_ray_hit(t, camera_.GenerateRay(x, y));
-
 	// intersect ray with the scene
 	RTCIntersectContext context;
 	rtcInitIntersectContext(&context);
@@ -226,30 +222,82 @@ Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 		Material* material;
 		get_geometry_data(ray_hit, normalVec, tex_coord, material);
 
-
-		Color4f color = get_material_color(normalVec, tex_coord, material);
-		do
+		color = get_material_color(normalVec, tex_coord, material);
+		//color = Vector3(ray_hit.hit.geomID/100.f, bump*25.f, 0);
+		//color = Vector3(0, bump*25.f, 0);
+		
+		if (bump < RAY_MAX_BUMPS && material->reflectivity > 0.f)
 		{
-			Vector3 hit(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
-			Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-			Vector3 reflectedVec = dir.Reflect(normalVec);
-			ray_hit = prepare_ray_hit(t, generate_ray(hit, reflectedVec));
-
-			// intersect ray with the scene
-			rtcInitIntersectContext(&context);
-			rtcIntersect1(scene_, &context, &ray_hit);
-
-			if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+			//Try reflected ray
+			//Vector3 normal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
+			Vector3 normal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
+			normal.Normalize();
+			if (normal.DotProduct(Vector3(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z)) < 0)
+				normal = { -normal.x, -normal.y, -normal.z };
+			Vector3 hit = Vector3(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z) + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
+			//Vector3 dir(-ray_hit.ray.dir_x, -ray_hit.ray.dir_y, -ray_hit.ray.dir_z);
+			//Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
+			Vector3 dir(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z);
+			Vector3 reflectedVec = dir.Reflect(normal);
+			reflectedVec.Normalize();
+			Vector3 reflected;
+			if (get_ray_color(prepare_ray_hit(t, generate_ray(hit, reflectedVec)), t, reflected, ++bump) && reflected.x > 0 && reflected.y > 0 && reflected.z > 0)
 			{
-				get_geometry_data(ray_hit, normalVec, tex_coord, material);
-				color = get_material_color(normalVec, tex_coord, material);
+				float p = powf(material->reflectivity, bump);
+				color = color * (1.f-p) + reflected * p;
 			}
-		} while (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID);
+		}
 
-		return color;
+		return true;
 	}
 
+	return false;
+}
+
+Color4f Raytracer::get_pixel( const int x, const int y, const float t )
+{
+	// TODO generate primary ray and perform ray cast on the scene
+	Vector3 color;
+	if (get_ray_color(prepare_ray_hit(t, camera_.GenerateRay(x, y)), t, color, 0))
+		return Color4f{ color.x, color.y, color.z, 1 };
+	// Background
 	return Color4f{ 0.2,0.2,0.2,1 };
+	//// intersect ray with the scene
+	//RTCIntersectContext context;
+	//rtcInitIntersectContext(&context);
+	//rtcIntersect1(scene_, &context, &ray_hit);
+
+	//if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+	//{
+	//	Vector3 normalVec;
+	//	Coord2f tex_coord;
+	//	Material* material;
+	//	get_geometry_data(ray_hit, normalVec, tex_coord, material);
+
+
+	//	Color4f color = get_material_color(normalVec, tex_coord, material);
+	//	do
+	//	{
+	//		Vector3 hit(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
+	//		Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
+	//		Vector3 reflectedVec = dir.Reflect(normalVec);
+	//		ray_hit = prepare_ray_hit(t, generate_ray(hit, reflectedVec));
+
+	//		// intersect ray with the scene
+	//		rtcInitIntersectContext(&context);
+	//		rtcIntersect1(scene_, &context, &ray_hit);
+
+	//		if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+	//		{
+	//			get_geometry_data(ray_hit, normalVec, tex_coord, material);
+	//			color = get_material_color(normalVec, tex_coord, material);
+	//		}
+	//	} while (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID);
+
+		//return color;
+	//}
+
+	//return Color4f{ 0.2,0.2,0.2,1 };
 }
 
 int Raytracer::Ui()
@@ -268,9 +316,13 @@ int Raytracer::Ui()
 	//ImGui::Checkbox( "Demo Window", &show_demo_window ); // Edit bools storing our window open/close state
 	//ImGui::Checkbox( "Another Window", &show_another_window );
 
-	ImGui::SliderFloat( "X", &light_.x, -1.0f, 1.0f ); // Edit 1 float using a slider from 0.0f to 1.0f    
-	ImGui::SliderFloat("Y", &light_.y, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderFloat("Z", &light_.z, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat( "Lx", &light_.x, -1.0f, 1.0f ); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat("Ly", &light_.y, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Lz", &light_.z, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Cx", &camera_.view_from_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat("Cy", &camera_.view_from_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Cz", &camera_.view_from_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 10);
 	//ImGui::ColorEdit3( "clear color", ( float* )&clear_color ); // Edit 3 floats representing a color
 
 	// Buttons return true when clicked (most widgets return true when edited/activated)

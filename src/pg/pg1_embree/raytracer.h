@@ -24,9 +24,10 @@ public:
 
 	void LoadScene( const std::string file_name );
 	RTCRayHit prepare_ray_hit(float t, RTCRay ray);
-	Color4f get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material);
+	Vector3 get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material);
 	void get_geometry_data(RTCRayHit ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
+	bool get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, int bump);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 
 	int Ui();
@@ -40,6 +41,7 @@ private:
 	Camera camera_;
 	Vector3 light_;
 	Vector3 lightPower_;
+	int RAY_MAX_BUMPS = 5;
 
 	float f_;
 };
