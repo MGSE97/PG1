@@ -24,7 +24,7 @@ public:
 
 	void LoadScene( const std::string file_name );
 	RTCRayHit prepare_ray_hit(float t, RTCRay ray);
-	Vector3 get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material);
+	Vector3 get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material, Vector3 origin);
 	void get_geometry_data(RTCRayHit ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
 	bool get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, int bump);

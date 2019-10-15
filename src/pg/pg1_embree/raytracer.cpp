@@ -130,7 +130,7 @@ RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray)
 	return ray_hit;
 }
 
-Vector3 Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material)
+Vector3 Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material, Vector3 origin)
 {
 	Vector3 color = Vector3{ 0.5,0.2,0.55 };
 	if(material != nullptr)
@@ -141,16 +141,18 @@ Vector3 Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Mate
 		if (difuse != nullptr)
 		{
 			Color3f texlet = difuse->get_texel(tex_coord.u, 1.0f - tex_coord.v);
-			color.x *= texlet.r;
-			color.y *= texlet.g;
-			color.z *= texlet.b;
-			color.Normalize();
+			color.x = texlet.r;
+			color.y = texlet.g;
+			color.z = texlet.b;
+			//color.Normalize();
 		}
+
+		//return color;
 
 		// Compute lighting
 		Vector3 reflectedVec = light_.Reflect(normalVec);//2 * (light_.CrossProduct(normalVec))*normalVec - light_;
 		reflectedVec.Normalize();
-		Vector3 cam = camera_.view_from_;
+		Vector3 cam = origin;
 		cam.Normalize();
 
 		Vector3 specular = material->specular;
@@ -217,14 +219,13 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 
 	if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
 	{
+		Vector3 from(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z);
 		Vector3 normalVec;
 		Coord2f tex_coord;
 		Material* material;
 		get_geometry_data(ray_hit, normalVec, tex_coord, material);
 
-		color = get_material_color(normalVec, tex_coord, material);
-		//color = Vector3(ray_hit.hit.geomID/100.f, bump*25.f, 0);
-		//color = Vector3(0, bump*25.f, 0);
+		color = get_material_color(normalVec, tex_coord, material, from);
 		
 		if (bump < RAY_MAX_BUMPS && material->reflectivity > 0.f)
 		{
@@ -232,19 +233,19 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 			//Vector3 normal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
 			Vector3 normal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
 			normal.Normalize();
-			if (normal.DotProduct(Vector3(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z)) < 0)
+			if (normal.DotProduct(from) < 0)
 				normal = { -normal.x, -normal.y, -normal.z };
-			Vector3 hit = Vector3(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z) + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-			//Vector3 dir(-ray_hit.ray.dir_x, -ray_hit.ray.dir_y, -ray_hit.ray.dir_z);
+			Vector3 hit = from + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
+			Vector3 dir(-ray_hit.ray.dir_x, -ray_hit.ray.dir_y, -ray_hit.ray.dir_z);
 			//Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-			Vector3 dir(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z);
-			Vector3 reflectedVec = dir.Reflect(normal);
+			Vector3 reflectedVec = dir.Reflect(normalVec);
 			reflectedVec.Normalize();
 			Vector3 reflected;
-			if (get_ray_color(prepare_ray_hit(t, generate_ray(hit, reflectedVec)), t, reflected, ++bump) && reflected.x > 0 && reflected.y > 0 && reflected.z > 0)
+			if (get_ray_color(prepare_ray_hit(t, generate_ray(hit, reflectedVec)), t, reflected, ++bump))
 			{
 				float p = powf(material->reflectivity, bump);
 				color = color * (1.f-p) + reflected * p;
+				//color = reflected;
 			}
 		}
 
@@ -260,44 +261,9 @@ Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 	Vector3 color;
 	if (get_ray_color(prepare_ray_hit(t, camera_.GenerateRay(x, y)), t, color, 0))
 		return Color4f{ color.x, color.y, color.z, 1 };
+
 	// Background
 	return Color4f{ 0.2,0.2,0.2,1 };
-	//// intersect ray with the scene
-	//RTCIntersectContext context;
-	//rtcInitIntersectContext(&context);
-	//rtcIntersect1(scene_, &context, &ray_hit);
-
-	//if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
-	//{
-	//	Vector3 normalVec;
-	//	Coord2f tex_coord;
-	//	Material* material;
-	//	get_geometry_data(ray_hit, normalVec, tex_coord, material);
-
-
-	//	Color4f color = get_material_color(normalVec, tex_coord, material);
-	//	do
-	//	{
-	//		Vector3 hit(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
-	//		Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-	//		Vector3 reflectedVec = dir.Reflect(normalVec);
-	//		ray_hit = prepare_ray_hit(t, generate_ray(hit, reflectedVec));
-
-	//		// intersect ray with the scene
-	//		rtcInitIntersectContext(&context);
-	//		rtcIntersect1(scene_, &context, &ray_hit);
-
-	//		if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
-	//		{
-	//			get_geometry_data(ray_hit, normalVec, tex_coord, material);
-	//			color = get_material_color(normalVec, tex_coord, material);
-	//		}
-	//	} while (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID);
-
-		//return color;
-	//}
-
-	//return Color4f{ 0.2,0.2,0.2,1 };
 }
 
 int Raytracer::Ui()
@@ -316,7 +282,7 @@ int Raytracer::Ui()
 	//ImGui::Checkbox( "Demo Window", &show_demo_window ); // Edit bools storing our window open/close state
 	//ImGui::Checkbox( "Another Window", &show_another_window );
 
-	ImGui::SliderFloat( "Lx", &light_.x, -1.0f, 1.0f ); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat("Lx", &light_.x, -1.0f, 1.0f ); // Edit 1 float using a slider from 0.0f to 1.0f    
 	ImGui::SliderFloat("Ly", &light_.y, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Lz", &light_.z, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Cx", &camera_.view_from_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
