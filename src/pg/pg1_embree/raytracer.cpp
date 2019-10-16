@@ -10,6 +10,12 @@ Raytracer::Raytracer( const int width, const int height,
 	InitDeviceAndScene( config );
 
 	camera_ = Camera( width, height, fov_y, view_from, view_at );
+	
+	cubeMap_ = new CubeMap("../../../data/sky185/sky185rt.png",
+		"../../../data/sky185/sky185lf.png", "../../../data/sky185/sky185bk.png",
+		"../../../data/sky185/sky185ft.png", "../../../data/sky185/sky185up.png",
+		"../../../data/sky185/sky185dn.png");
+
 }
 
 Raytracer::~Raytracer()
@@ -233,7 +239,7 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 			//Vector3 normal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
 			Vector3 normal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
 			normal.Normalize();
-			if (normal.DotProduct(from) < 0)
+			if (from.DotProduct(normal) < 0)
 				normal = { -normal.x, -normal.y, -normal.z };
 			Vector3 hit = from + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
 			Vector3 dir(-ray_hit.ray.dir_x, -ray_hit.ray.dir_y, -ray_hit.ray.dir_z);
@@ -258,12 +264,16 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 {
 	// TODO generate primary ray and perform ray cast on the scene
+	auto ray = camera_.GenerateRay(x, y);
 	Vector3 color;
-	if (get_ray_color(prepare_ray_hit(t, camera_.GenerateRay(x, y)), t, color, 0))
-		return Color4f{ color.x, color.y, color.z, 1 };
+	if (!get_ray_color(prepare_ray_hit(t, ray), t, color, 0))
+		// Background
+		color = cubeMap_->get_texel(Vector3(ray.dir_x, ray.dir_y, ray.dir_z));
+
+	return Color4f{ color.x, color.y, color.z, 1 };
 
 	// Background
-	return Color4f{ 0.2,0.2,0.2,1 };
+	//return Color4f{ 0.2,0.2,0.2,1 };
 }
 
 int Raytracer::Ui()
@@ -288,12 +298,16 @@ int Raytracer::Ui()
 	ImGui::SliderFloat("Cx", &camera_.view_from_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
 	ImGui::SliderFloat("Cy", &camera_.view_from_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Cz", &camera_.view_from_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Tx", &camera_.view_at_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat("Ty", &camera_.view_at_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Tz", &camera_.view_at_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 10);
 	//ImGui::ColorEdit3( "clear color", ( float* )&clear_color ); // Edit 3 floats representing a color
 
 	// Buttons return true when clicked (most widgets return true when edited/activated)
-	if ( ImGui::Button( "Button" ) )
-		counter++;
+	if (ImGui::Button("Update Target"))
+		camera_.Update();
+		//counter++;
 	ImGui::SameLine();
 	ImGui::Text( "counter = %d", counter );
 

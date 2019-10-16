@@ -2,6 +2,7 @@
 #include "simpleguidx11.h"
 #include "surface.h"
 #include "camera.h"
+#include "cubemap.h"
 
 /*! \class Raytracer
 \brief General ray tracer class.
@@ -42,6 +43,7 @@ private:
 	Vector3 light_;
 	Vector3 lightPower_;
 	int RAY_MAX_BUMPS = 5;
+	CubeMap* cubeMap_;
 
 	float f_;
 };

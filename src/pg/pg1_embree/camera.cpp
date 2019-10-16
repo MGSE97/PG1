@@ -10,7 +10,11 @@ Camera::Camera( const int width, const int height, const float fov_y,
 
 	view_from_ = view_from;
 	view_at_ = view_at;
+	Update();
+}
 
+Camera* Camera::Update()
+{
 	// TODO compute focal lenght based on the vertical field of view and the camera resolution
 	f_y_ = height_ / (2 * tanf(fov_y_) * 0.5f);
 
@@ -23,6 +27,8 @@ Camera::Camera( const int width, const int height, const float fov_y,
 	yc.Normalize();
 	zc.Normalize();
 	M_c_w_ = Matrix3x3(xc, yc, zc);
+
+	return this;
 }
 
 RTCRay Camera::GenerateRay( const float x_i, const float y_i ) const
