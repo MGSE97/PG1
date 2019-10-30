@@ -113,6 +113,18 @@ public:
 	*/
 	Vector3 Reflect(const Vector3 & v) const;
 
+	//! Umocnìní vektoru
+	/*!
+	\return powf(vector, power)
+	*/
+	Vector3 Powf(const float power = 2.0f) const;
+	
+	//! Odmocnìní vektoru
+	/*!
+	\return sqrt(vector, power)
+	*/
+	Vector3 Sqrt(const float power = 2.0f) const;
+
 	void Print();
 
 	// --- operátory ------
@@ -120,7 +132,9 @@ public:
 	friend Vector3 operator-( const Vector3 & v );
 
 	friend Vector3 operator+( const Vector3 & u, const Vector3 & v );
+	friend Vector3 operator+(const float a, const Vector3 & v);
 	friend Vector3 operator-( const Vector3 & u, const Vector3 & v );
+	friend Vector3 operator-(const float a, const Vector3 & v);
 
 	friend Vector3 operator*( const Vector3 & v, const float a );	
 	friend Vector3 operator*( const float a, const Vector3 & v );

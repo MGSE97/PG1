@@ -148,6 +148,24 @@ int LoadMTL( const char * file_name, const char * path, std::vector<Material *> 
 				{
 					sscanf( tmp, "%*s %f", &material->shininess );
 				}
+				if (strstr(tmp, "Ni") == tmp) // index of refraction
+				{
+					sscanf(tmp, "%*s %f", &material->ior);
+				}
+				//if (strstr(tmp, "Tr") == tmp) // transparency
+				//{
+				//	sscanf(tmp, "%*s %f", &material->alpha);
+				//	/*if (material->ior <= 0.f)
+				//		//material->ior = IOR_GLASS;
+				//		material->ior = IOR_PLASTIC;*/
+				//}
+				if (strstr(tmp, "d") == tmp) // transparency
+				{
+					sscanf(tmp, "%*s %f", &material->alpha);
+					/*if (material->ior <= 0.f)
+						//material->ior = IOR_GLASS;
+						material->ior = IOR_PLASTIC;*/
+				}
 				if ( strstr( tmp, "map_Kd" ) == tmp ) // diffuse map
 				{					
 					sscanf( tmp, "%*s %s", image_file_name );

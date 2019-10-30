@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "CubeMap.h"
+#include "SrgbTransform.h"
 
 CubeMap::CubeMap(const char* posx, const char* negx, const char* posy,
 				const char* negy, const char* posz, const char* negz)
@@ -79,5 +80,5 @@ Vector3 CubeMap::get_texel(Vector3 direction)
 
 
 	Color3f texel = textures.at(position)->get_texel(u, v);
-	return Vector3(texel.r, texel.g, texel.b);
+	return SrgbTransform::srgbToLinear(Vector3(texel.r, texel.g, texel.b));
 }

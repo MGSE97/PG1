@@ -26,6 +26,8 @@ protected:
 	virtual int Ui();
 	virtual Color4f get_pixel( const int x, const int y, const float t = 0.0f );
 
+	void sample(int x, int y, float t, Color4f * result);
+
 	void Producer();
 
 	int width() const;

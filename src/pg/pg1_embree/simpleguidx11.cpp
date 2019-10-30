@@ -83,6 +83,11 @@ Color4f SimpleGuiDX11::get_pixel( const int x, const int y, const float t )
 	return Color4f{ 1.0f, 0.0f, 1.0f, 1.0f };
 }
 
+void SimpleGuiDX11::sample(int x, int y, float t, Color4f* result)
+{
+	*result = get_pixel(x, y, t);
+}
+
 void SimpleGuiDX11::Producer()
 {
 	float * local_data = new float[width_*height_ * 4];
@@ -92,7 +97,7 @@ void SimpleGuiDX11::Producer()
 
 	// refinenment loop
 	//for ( float t = 0.0f; t < 1e+3 && !finish_request_.load( std::memory_order_acquire ); t += float( 1e-1 ) )
-	while ( !finish_request_.load( std::memory_order_acquire ) )
+	while (!finish_request_.load(std::memory_order_acquire))
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<float> dt = t1 - t0;
@@ -102,10 +107,11 @@ void SimpleGuiDX11::Producer()
 		// compute rendering
 		//std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
 //#pragma omp parallel for
+
 		for ( int y = 0; y < height_; ++y )
 		{		
 			for ( int x = 0; x < width_; ++x )
-			{				
+			{	
 				const Color4f pixel = get_pixel( x, y, t );
 				const int offset = ( y * width_ + x ) * 4;
 

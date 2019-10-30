@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "vector3.h"
 #include "mymath.h"
+#include <math.h>
 
 Vector3::Vector3( const float * v )
 {
@@ -90,7 +91,17 @@ char Vector3::LargestComponent( const bool absolute_value )
 
 Vector3 Vector3::Reflect(const Vector3& v) const
 {
-	return 2*(CrossProduct(v))*v - *this;
+	return (2.0f*DotProduct(v))*v - *this;
+}
+
+Vector3 Vector3::Powf(const float power) const
+{
+	return Vector3(powf(this->x, power), powf(this->y, power), powf(this->z, power));
+}
+
+Vector3 Vector3::Sqrt(const float power) const
+{
+	return this->Powf(1.0f / power);
 }
 
 void Vector3::Print()
@@ -111,9 +122,19 @@ Vector3 operator+( const Vector3 & u, const Vector3 & v )
 	return Vector3( u.x + v.x, u.y + v.y, u.z + v.z );
 }
 
+Vector3 operator+(const float a, const Vector3 & v)
+{
+	return Vector3(a + v.x, a + v.y, a + v.z);
+}
+
 Vector3 operator-( const Vector3 & u, const Vector3 & v )
 {
 	return Vector3( u.x - v.x, u.y - v.y, u.z - v.z );
+}
+
+Vector3 operator-(const float a, const Vector3 & v)
+{
+	return Vector3(a - v.x, a - v.y, a - v.z);
 }
 
 Vector3 operator*( const Vector3 & v, const float a )

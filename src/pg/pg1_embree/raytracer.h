@@ -25,15 +25,21 @@ public:
 
 	void LoadScene( const std::string file_name );
 	RTCRayHit prepare_ray_hit(float t, RTCRay ray);
-	Vector3 get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material, Vector3 origin);
+	Vector3 get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material, Vector3 hit, Vector3 origin);
 	void get_geometry_data(RTCRayHit ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
-	bool get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, int bump);
+	bool get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, float n1, int bump);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
+	float get_random_float();
+	RTCRay generate_ray(Vector3& hit, Vector3& direction);
 
 	int Ui();
 
 private:
+	std::random_device rd_;
+	std::mt19937 e2_;
+	uniform_real_distribution<> dist_;
+
 	std::vector<Surface *> surfaces_;
 	std::vector<Material *> materials_;
 
@@ -42,8 +48,11 @@ private:
 	Camera camera_;
 	Vector3 light_;
 	Vector3 lightPower_;
-	int RAY_MAX_BUMPS = 5;
+	int RAY_MAX_BUMPS = 0;
 	CubeMap* cubeMap_;
+	bool refr_{ true };
+	bool refl_{ true };
 
 	float f_;
+	int ss_ = 0;
 };

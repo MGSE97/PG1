@@ -190,3 +190,17 @@ int tutorial_3( const std::string file_name, const char * config )
 
 	return EXIT_SUCCESS;
 }
+
+/* raytracer mainloop */
+int tutorial_4(const std::string file_name, const char * config)
+{
+	//SimpleGuiDX11 gui( 640, 480 );
+	//gui.MainLoop();
+
+	Raytracer raytracer(640, 480, deg2rad(45.0),
+		Vector3(2, -2, 2), Vector3(0, 0, 0), config);
+	raytracer.LoadScene(file_name);
+	raytracer.MainLoop();
+
+	return EXIT_SUCCESS;
+}

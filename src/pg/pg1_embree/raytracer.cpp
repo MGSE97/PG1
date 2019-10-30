@@ -2,6 +2,8 @@
 #include "raytracer.h"
 #include "objloader.h"
 #include "tutorials.h"
+#include <math.h>
+#include "SrgbTransform.h"
 
 Raytracer::Raytracer( const int width, const int height,
 	const float fov_y, const Vector3 view_from, const Vector3 view_at,
@@ -16,6 +18,8 @@ Raytracer::Raytracer( const int width, const int height,
 		"../../../data/sky185/sky185ft.png", "../../../data/sky185/sky185up.png",
 		"../../../data/sky185/sky185dn.png");
 
+	e2_ = std::mt19937(rd_());
+	dist_ = std::uniform_real_distribution<>(-0.5f, 0.5f);
 }
 
 Raytracer::~Raytracer()
@@ -33,6 +37,8 @@ int Raytracer::InitDeviceAndScene( const char * config )
 
 	// create a new scene bound to the specified device
 	scene_ = rtcNewScene( device_ );
+
+	rtcSetSceneFlags(scene_, RTC_SCENE_FLAG_ROBUST);
 
 	light_ = Vector3{ 200,300,400 };
 	light_.Normalize();
@@ -116,7 +122,7 @@ void Raytracer::LoadScene( const std::string file_name )
 
 RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray)
 {
-	ray.tnear = FLT_MIN; // start of ray segment
+	ray.tnear = 0.01f;// FLT_MIN; // start of ray segment
 	ray.time = t; // time of this ray for motion blur
 
 	ray.tfar = FLT_MAX; // end of ray segment (set to hit distance)
@@ -136,48 +142,59 @@ RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray)
 	return ray_hit;
 }
 
-Vector3 Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material, Vector3 origin)
+Vector3 Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material, Vector3 hit, Vector3 origin)
 {
 	Vector3 color = Vector3{ 0.5,0.2,0.55 };
 	if(material != nullptr)
 	{
-		// Get Difuse
-		color = material->diffuse;
-		Texture* difuse = material->get_texture(material->kDiffuseMapSlot);
-		if (difuse != nullptr)
+		// Check Shadow
+		auto ray_hit = prepare_ray_hit(0, generate_ray(hit, light_));
+		RTCIntersectContext context;
+		rtcInitIntersectContext(&context);
+		rtcIntersect1(scene_, &context, &ray_hit);
+
+		if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+			color = lightPower_.x * material->ambient;
+		else
 		{
-			Color3f texlet = difuse->get_texel(tex_coord.u, 1.0f - tex_coord.v);
-			color.x = texlet.r;
-			color.y = texlet.g;
-			color.z = texlet.b;
-			//color.Normalize();
+			// Get Difuse
+			color = material->diffuse;
+			Texture* difuse = material->get_texture(material->kDiffuseMapSlot);
+			if (difuse != nullptr)
+			{
+				Color3f texlet = difuse->get_texel(tex_coord.u, 1.0f - tex_coord.v);
+				color.x = texlet.r;
+				color.y = texlet.g;
+				color.z = texlet.b;
+				//color.Normalize();
+			}
+
+			//return color;
+
+			// Compute lighting
+			Vector3 reflectedVec = light_.Reflect(normalVec);//2 * (light_.CrossProduct(normalVec))*normalVec - light_;
+			reflectedVec.Normalize();
+			Vector3 cam = origin;
+			cam.Normalize();
+
+			Vector3 specular = material->specular;
+			Texture* specularmap = material->get_texture(material->kSpecularMapSlot);
+			if (specularmap != nullptr)
+			{
+				Color3f texlet = specularmap->get_texel(tex_coord.u, 1.0f - tex_coord.v);
+				specular.x *= texlet.r;
+				specular.y *= texlet.g;
+				specular.z *= texlet.b;
+				specular.Normalize();
+			}
+
+			color = lightPower_.x * material->ambient +
+				lightPower_.y * color * max(normalVec.DotProduct(light_), .0f) +
+				lightPower_.z * specular * powf(max(reflectedVec.DotProduct(cam), .0f), material->shininess);
 		}
-
-		//return color;
-
-		// Compute lighting
-		Vector3 reflectedVec = light_.Reflect(normalVec);//2 * (light_.CrossProduct(normalVec))*normalVec - light_;
-		reflectedVec.Normalize();
-		Vector3 cam = origin;
-		cam.Normalize();
-
-		Vector3 specular = material->specular;
-		Texture* specularmap = material->get_texture(material->kSpecularMapSlot);
-		if (specularmap != nullptr)
-		{
-			Color3f texlet = specularmap->get_texel(tex_coord.u, 1.0f - tex_coord.v);
-			specular.x *= texlet.r;
-			specular.y *= texlet.g;
-			specular.z *= texlet.b;
-			specular.Normalize();
-		}
-			
-		color = lightPower_.x * material->ambient +
-			lightPower_.y * color * max(normalVec.DotProduct(light_), .0f) +
-			lightPower_.z * specular * powf(max(reflectedVec.DotProduct(cam), .0f), material->shininess);
 	}
 
-	return color;
+	return SrgbTransform::srgbToLinear(color);
 }
 
 void Raytracer::get_geometry_data(RTCRayHit ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material)
@@ -197,7 +214,7 @@ void Raytracer::get_geometry_data(RTCRayHit ray_hit, Vector3& normalVec, Coord2f
 	material = static_cast<Material*>(rtcGetGeometryUserData(geometry));
 }
 
-RTCRay generate_ray(Vector3& hit, Vector3& direction)
+RTCRay Raytracer::generate_ray(Vector3& hit, Vector3& direction)
 {
 	RTCRay ray;
 
@@ -216,7 +233,7 @@ RTCRay generate_ray(Vector3& hit, Vector3& direction)
 	return ray;
 }
 
-bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, int bump)
+bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, float n1, int bump)
 {
 	// intersect ray with the scene
 	RTCIntersectContext context;
@@ -226,33 +243,91 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 	if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
 	{
 		Vector3 from(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z);
+		Vector3 hit = from + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
 		Vector3 normalVec;
 		Coord2f tex_coord;
 		Material* material;
 		get_geometry_data(ray_hit, normalVec, tex_coord, material);
 
-		color = get_material_color(normalVec, tex_coord, material, from);
+		color = get_material_color(normalVec, tex_coord, material, hit, from);
 		
-		if (bump < RAY_MAX_BUMPS && material->reflectivity > 0.f)
+		if (bump < RAY_MAX_BUMPS)// && material->reflectivity > 0.f)
 		{
-			//Try reflected ray
-			//Vector3 normal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
-			Vector3 normal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
-			normal.Normalize();
-			if (from.DotProduct(normal) < 0)
-				normal = { -normal.x, -normal.y, -normal.z };
-			Vector3 hit = from + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-			Vector3 dir(-ray_hit.ray.dir_x, -ray_hit.ray.dir_y, -ray_hit.ray.dir_z);
-			//Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-			Vector3 reflectedVec = dir.Reflect(normalVec);
-			reflectedVec.Normalize();
-			Vector3 reflected;
-			if (get_ray_color(prepare_ray_hit(t, generate_ray(hit, reflectedVec)), t, reflected, ++bump))
+			bump++;
+
+			//Prepare next ray data
+			Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
+			Vector3 hitNormal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
+			if (hitNormal.DotProduct(normalVec) < 0)
+				normalVec = -normalVec;
+			Vector3 resultReflected, resultRefracted;
+			if (refl_)
 			{
-				float p = powf(material->reflectivity, bump);
-				color = color * (1.f-p) + reflected * p;
-				//color = reflected;
+				Vector3 reflectedVec = (-1 * dir).Reflect(normalVec);
+				reflectedVec.Normalize();
+
+
+				//Try reflected ray
+				if (!get_ray_color(prepare_ray_hit(t, generate_ray(hit, reflectedVec)), t, resultReflected, material->ior, bump))
+				{
+					resultReflected = cubeMap_->get_texel(reflectedVec);;
+				}
 			}
+			else
+			{
+				resultReflected = color;
+			}
+
+			float R = 0.f, len = ray_hit.ray.tfar;
+
+			if (n1 <= 0.f)
+				n1 = IOR_AIR;
+			if (refr_ && material->alpha < 1.f)
+			{
+				float	//rp = powf(material->reflectivity, 1 / (float)(++bump)),
+				//tp = 1.0f - rp,
+				//len = ray_hit.ray.tfar,
+					n2 = material->ior,
+					n12 = n1 / n2;
+
+				//Try refracted ray
+				Vector3 dirNormal = dir.CrossProduct(normalVec);
+				Vector3 refractedVec = n12 * dir - (n12*dirNormal + (1.f - powf(n12, 2) * (1.f - dirNormal.Powf())).Sqrt()).CrossProduct(normalVec);
+
+				/*float
+					R0 = powf((n1 - n2) / (n1 + n2), 2.f),
+					o = n1 < n2 ? dir.DotProduct(normalVec) : refractedVec.DotProduct(-1.f * normalVec);
+				R = R0 + (1.f - R0)*powf(1.f - cosf(o), 5.f);*/
+				float o1 = dir.DotProduct(normalVec), o2 = refractedVec.DotProduct(-normalVec),
+					n2o2 = n2 * cos(o2), n1o1 = n1 * cos(o1),
+					n2o1 = n2 * cos(o1), n1o2 = n1 * cos(o2),
+					Rs = powf((n2o2 - n1o1) / (n2o2 + n1o1), 2.f),
+					Rp = powf((n2o1 - n1o2) / (n2o1 + n1o2), 2.f);
+				R = (Rs + Rp) / 2.f;
+
+				if (!get_ray_color(prepare_ray_hit(t, generate_ray(hit, refractedVec)), t, resultRefracted, n2, bump))
+				{
+					resultRefracted = cubeMap_->get_texel(refractedVec);
+				}
+				else len = 0;
+			}
+			else
+			{
+				resultRefracted = color;
+				R = powf(material->reflectivity, 1.f / static_cast<float>(bump));
+			}
+
+			//float tbl = tbl = exp(-.5f*len);
+			color = (resultRefracted * (1.f - R) +resultReflected * R);
+
+			/*float
+				o1 = dir.DotProduct(normalVec),
+				o2 = refractedVec.DotProduct(-1 * normalVec),
+				Rs = powf((n2*cosf(o2) - n1 * cosf(o1)) / (n2*cosf(o2) + n1 * cosf(o1)), 2),
+				Rp = powf((n2*cosf(o1) - n1 * cosf(o2)) / (n2*cosf(o1) + n1 * cosf(o2)), 2),
+				R = (Rs + Rp) / 2.0f,
+				T = 1.f - R;*/
+
 		}
 
 		return true;
@@ -264,16 +339,35 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 {
 	// TODO generate primary ray and perform ray cast on the scene
-	auto ray = camera_.GenerateRay(x, y);
-	Vector3 color;
-	if (!get_ray_color(prepare_ray_hit(t, ray), t, color, 0))
-		// Background
-		color = cubeMap_->get_texel(Vector3(ray.dir_x, ray.dir_y, ray.dir_z));
+	// TODO	 Super sampling
 
+	Vector3 color(0,0,0);
+	Vector3 result;
+	int count = 0;
+	for(int i = -ss_; i <= ss_; i++)
+		for(int j = -ss_; j <= ss_; j++)
+		{
+			//const float dx = get_random_float(), dy = get_random_float();
+			const float dx = i * 0.25f, dy = j * 0.25f;
+			auto ray = camera_.GenerateRay(x+dx, y+dy);
+			if (!get_ray_color(prepare_ray_hit(t, ray), t, result, IOR_AIR, 0))
+				// Background
+				color += cubeMap_->get_texel(Vector3(ray.dir_x, ray.dir_y, ray.dir_z));
+			else
+				color += result;
+			count++;
+		}
+	color /= (float)count;
+	color = SrgbTransform::linearToSrgb(color);
 	return Color4f{ color.x, color.y, color.z, 1 };
 
 	// Background
 	//return Color4f{ 0.2,0.2,0.2,1 };
+}
+
+float Raytracer::get_random_float()
+{
+	return dist_(e2_);
 }
 
 int Raytracer::Ui()
@@ -288,10 +382,13 @@ int Raytracer::Ui()
 	ImGui::Text( "Materials = %d", materials_.size() );
 	ImGui::Separator();
 	ImGui::Checkbox( "Vsync", &vsync_ );
+	ImGui::Checkbox("Refraction", &refr_);
+	ImGui::Checkbox("Reflection", &refl_);
 	
 	//ImGui::Checkbox( "Demo Window", &show_demo_window ); // Edit bools storing our window open/close state
 	//ImGui::Checkbox( "Another Window", &show_another_window );
-
+	
+	ImGui::SliderInt("Super Sampling", &ss_, 0, 9); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Lx", &light_.x, -1.0f, 1.0f ); // Edit 1 float using a slider from 0.0f to 1.0f    
 	ImGui::SliderFloat("Ly", &light_.y, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Lz", &light_.z, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   

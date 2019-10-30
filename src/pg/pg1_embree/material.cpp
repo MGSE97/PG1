@@ -18,7 +18,8 @@ Material::Material()
 	reflectivity = static_cast<float>( 0.99 );
 	shininess = 1;
 
-	ior = -1;
+	alpha = 1.f;
+	ior = IOR_PLASTIC;//-1;
 
 	memset( textures_, 0, sizeof( *textures_ ) * NO_TEXTURES );
 

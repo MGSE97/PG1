@@ -24,6 +24,11 @@
 */
 #define IOR_GLASS 1.5f
 
+/*! \def IOR_GLASS
+\brief Index lomu skla.
+*/
+#define IOR_PLASTIC 1.46f
+
 /*! \class Material
 \brief A simple material.
 
@@ -104,6 +109,7 @@ public:
 
 	float reflectivity; /*!< Koeficient odrazivosti. */
 	float ior; /*!< Index lomu. */
+	float alpha; /* transparency */
 
 	static const char kDiffuseMapSlot; /*!< Èíslo slotu difuzní textury. */
 	static const char kSpecularMapSlot; /*!< Èíslo slotu spekulární textury. */
