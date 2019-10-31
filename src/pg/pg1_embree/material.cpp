@@ -14,6 +14,7 @@ Material::Material()
 	specular = Vector3( 0.8f, 0.8f, 0.8f );	
 
 	emission = Vector3( 0.0f, 0.0f, 0.0f );	
+	attenuation = Vector3(0.0f, 0.0f, 0.0f);
 
 	reflectivity = static_cast<float>( 0.1 );
 	shininess = 1;

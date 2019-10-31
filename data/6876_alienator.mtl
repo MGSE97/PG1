@@ -29,7 +29,7 @@ newmtl red_plastic_transparent
 	Ni 1.5000
 	d 0.0000
 	Tr 0.0000
-	Tf 1.0000 1.0000 1.0000 
+	Tf 0.5 1.0 1.0 
 	illum 2
 	Ka 0.0882 0.0000 0.0000
 	Kd 0.6082 0.0200 0.0200
@@ -53,7 +53,7 @@ newmtl yellow_plastic_transparent
 	Ni 1.5000
 	d 0.0000
 	Tr 0.0000
-	Tf 1.0000 1.0000 1.0000 
+	Tf 0.5 0.5 1.0 
 	illum 2
 	Ka 0.0933 0.0945 0.0047
 	Kd 0.9333 0.9451 0.0471

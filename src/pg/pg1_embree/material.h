@@ -104,6 +104,7 @@ public:
 	Vector3 specular; /*!< RGB barva odrazu \f$\left<0, 1\right>^3\f$. */
 
 	Vector3 emission; /*!< RGB barva emise \f$\left<0, 1\right>^3\f$. */
+	Vector3 attenuation; /*!< RGB barva propustnosti prùhledného materiálu (Tb-l - u) \f$\left<0, 1\right>^3\f$. */
 
 	float shininess; /*!< Koeficient lesklosti (\f$\ge 0\f$). Èím je hodnota vìtší, tím se jeví povrch lesklejší. */
 

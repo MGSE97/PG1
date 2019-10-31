@@ -29,6 +29,7 @@ public:
 	void get_geometry_data(RTCRayHit ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
 	bool get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, float n1, int bump);
+	void ReflectionOnly(float n1, float n2, Vector3& dir, Vector3& normalVec, float& R, Vector3& color, Vector3& resultReflected);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 	float get_random_float();
 	RTCRay generate_ray(Vector3& hit, Vector3& direction);
@@ -53,7 +54,7 @@ private:
 	bool refr_{ true };
 	bool refl_{ true };
 
-	float done_ = 0;
-	float f_;
+	int done_ = 0;
+	float f_, rendered_ = 0;
 	int ss_ = 0;
 };

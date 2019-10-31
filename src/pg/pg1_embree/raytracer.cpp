@@ -200,6 +200,7 @@ Vector3 Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Mate
 				specular.Normalize();
 			}
 
+			// Rotate normal of black transparent sides
 			color = lightPower_.x * material->ambient +
 				lightPower_.y * color * max(normalVec.DotProduct(light_), .0f) +
 				lightPower_.z * specular * powf(max(reflectedVec.DotProduct(cam), .0f), material->shininess);
@@ -278,38 +279,22 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 
 			Vector3 reflectedVec = (-1 * dir).Reflect(normalVec);
 			reflectedVec.Normalize();
+
 			if (refl_)
-			{
-
-
 				//Try reflected ray
 				if (!get_ray_color(prepare_ray_hit(t, generate_ray(hit, reflectedVec)), t, resultReflected, material->ior, bump))
-				{
-					resultReflected = cubeMap_->get_texel(reflectedVec);;
-				}
-			}
-			else
-			{
-				resultReflected = color;
-			}
+					resultReflected = cubeMap_->get_texel(reflectedVec);
 
-			float R = 0.f, len = ray_hit.ray.tfar, n2 = material->ior;
+			else
+				resultReflected = color;
+
+			if (n1 <= 0.f)
+				n1 = IOR_AIR;
+			float R = 0.f, len = ray_hit.ray.tfar, n2 = n1 > IOR_AIR ? IOR_AIR : material->ior, n12 = n1 / n2;
 
 			if (refr_ && material->alpha < 1.f)
 			{
-				if (n1 <= 0.f)
-					n1 = IOR_AIR;
-				else if (n1 > IOR_AIR)
-				{
-					n2 = IOR_AIR;
-				}
-				float	//rp = powf(material->reflectivity, 1 / (float)(++bump)),
-				//tp = 1.0f - rp,
-				//len = ray_hit.ray.tfar,
-					n12 = n1 / n2;
-
 				//Try refracted ray
-				//dir.Normalize();
 				float dirNormal = dir.DotProduct(normalVec);
 				auto a = powf(dirNormal, 2.0f),
 					b = sqrt(1.f - powf(n12, 2.f) * (1.f - a));
@@ -320,7 +305,7 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 				float
 					R0 = powf((n1 - n2) / (n1 + n2), 2.f),
 					o = n1 <= n2 ? dir.DotProduct(normalVec) : refractedVec.DotProduct(normalVec);
-				R = R0 + (1.f - R0)*powf(1.f - cosf(o), 5.f);
+				R = max(R0 + (1.f - R0)*powf(1.f - cosf(o), 5.f), 0.01f);
 				/*float o1 = dir.DotProduct(normalVec), o2 = refractedVec.DotProduct(-normalVec),
 					n2o2 = n2 * cos(o2), n1o1 = n1 * cos(o1),
 					n2o1 = n2 * cos(o1), n1o2 = n1 * cos(o2),
@@ -329,33 +314,14 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 				R = (Rs + Rp) / 2.f;*/
 
 				if (!get_ray_color(prepare_ray_hit(t, generate_ray(hit, refractedVec)), t, resultRefracted, n2, bump))
-				{
 					resultRefracted = cubeMap_->get_texel(refractedVec);
-				}
-				else len = 0;
 
-				if ((resultRefracted.x <= 0 && resultRefracted.y <= 0 && resultRefracted.z <= 0) || R <= 0 || R >= 1)
-				{
-					resultRefracted = color;
-					R = powf(material->reflectivity, 1.f / static_cast<float>(bump));
-				}
+				else len = 0;
+				// Refraction + Reflection + Attenuation
+				color = (resultRefracted * (1.f - R) + resultReflected * R) * material->attenuation.Exp(-len);
 			}
 			else
-			{
-				resultRefracted = color;
-				R = powf(material->reflectivity, 1.f / static_cast<float>(bump));
-			}
-
-			//float tbl = tbl = exp(-.5f*len);
-			color = (resultRefracted * (1.f - R) +resultReflected * R);
-
-			/*float
-				o1 = dir.DotProduct(normalVec),
-				o2 = refractedVec.DotProduct(-1 * normalVec),
-				Rs = powf((n2*cosf(o2) - n1 * cosf(o1)) / (n2*cosf(o2) + n1 * cosf(o1)), 2),
-				Rp = powf((n2*cosf(o1) - n1 * cosf(o2)) / (n2*cosf(o1) + n1 * cosf(o2)), 2),
-				R = (Rs + Rp) / 2.0f,
-				T = 1.f - R;*/
+				ReflectionOnly(n1, n2, dir, normalVec, R, color, resultReflected);
 
 		}
 
@@ -365,12 +331,25 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 	return false;
 }
 
+void Raytracer::ReflectionOnly(float n1, float n2, Vector3& dir, Vector3& normalVec, float& R, Vector3& color, Vector3& resultReflected)
+{
+
+	// Reflection only
+	float
+		R0 = powf((n1 - n2) / (n1 + n2), 2.f),
+		o = dir.DotProduct(normalVec);
+	R = R0 + (1.f - R0) * powf(1.f - cosf(o), 5.f);
+	color += resultReflected * R;
+}
+
 Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 {
-	if (x == 0 && y == 0)
+	if (done_ == camera_.area_)//(x == 0 && y == 0)
 		done_ = 0;
 	else
-		done_ = static_cast<float>(y * camera_.width_ + x) / static_cast<float>(camera_.area_);
+		//done_ = static_cast<float>(y * camera_.width_ + x) / static_cast<float>(camera_.area_);
+		done_++;
+	rendered_ = done_ / static_cast<float>(camera_.area_);
 
 	Vector3 color(0,0,0);
 	Vector3 result;
@@ -380,7 +359,7 @@ Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 		{
 			//const float dx = get_random_float(), dy = get_random_float();
 			const float dx = i * 0.25f, dy = j * 0.25f;
-			auto ray = camera_.GenerateRay(x+dx, y+dy);
+			auto ray = camera_.GenerateRay(x + dx, y + dy);
 			if (!get_ray_color(prepare_ray_hit(t, ray), t, result, IOR_AIR, 0))
 				// Background
 				color += cubeMap_->get_texel(Vector3(ray.dir_x, ray.dir_y, ray.dir_z));
@@ -411,7 +390,7 @@ int Raytracer::Ui()
 
 
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-	ImGui::ProgressBar(done_);
+	ImGui::ProgressBar(rendered_);
 
 	ImGui::Text( "Surfaces = %d", surfaces_.size() );
 	ImGui::Text( "Materials = %d", materials_.size() );
@@ -433,7 +412,7 @@ int Raytracer::Ui()
 	ImGui::SliderFloat("Tx", &camera_.view_at_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
 	ImGui::SliderFloat("Ty", &camera_.view_at_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Tz", &camera_.view_at_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 50);
+	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 30);
 	//ImGui::ColorEdit3( "clear color", ( float* )&clear_color ); // Edit 3 floats representing a color
 
 	// Buttons return true when clicked (most widgets return true when edited/activated)

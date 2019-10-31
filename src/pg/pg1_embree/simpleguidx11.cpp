@@ -106,10 +106,10 @@ void SimpleGuiDX11::Producer()
 
 		// compute rendering
 		//std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
-//#pragma omp parallel for
 
+		#pragma omp parallel for
 		for ( int y = 0; y < height_; ++y )
-		{		
+		{
 			for ( int x = 0; x < width_; ++x )
 			{	
 				const Color4f pixel = get_pixel( x, y, t );
@@ -186,7 +186,8 @@ int SimpleGuiDX11::MainLoop()
 			g_pd3dDeviceContext->Unmap( tex_id_, 0 );
 		}
 
-		ImGui::Begin( "Image", 0, ImGuiWindowFlags_NoResize );
+		//ImGui::Begin( "Image", 0, ImGuiWindowFlags_NoResize );
+		ImGui::Begin("Image", 0, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Image( ImTextureID( tex_view_ ), ImVec2( float( width_ ), float( height_ ) ) );
 		ImGui::End();
 

@@ -144,6 +144,10 @@ int LoadMTL( const char * file_name, const char * path, std::vector<Material *> 
 				{
 					sscanf( tmp, "%*s %f %f %f", &material->emission.x, &material->emission.y, &material->emission.z );
 				}
+				if (strstr(tmp, "Tf") == tmp) // emission color of the material
+				{
+					sscanf(tmp, "%*s %f %f %f", &material->attenuation.x, &material->attenuation.y, &material->attenuation.z);
+				}
 				if ( strstr( tmp, "Ns" ) == tmp ) // specular coefficient
 				{
 					sscanf( tmp, "%*s %f", &material->shininess );

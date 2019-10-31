@@ -127,6 +127,11 @@ Vector3 Vector3::Sqrt(const float power) const
 	return Vector3(ssqrt(this->x), ssqrt(this->y), ssqrt(this->z));
 }
 
+Vector3 Vector3::Exp(const float power) const
+{
+	return Vector3(exp(this->x*power), exp(this->y*power), exp(this->z*power));
+}
+
 void Vector3::Print()
 {
 	printf( "(%0.3f, %0.3f, %0.3f)\n", x, y, z ); 

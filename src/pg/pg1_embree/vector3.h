@@ -125,6 +125,13 @@ public:
 	*/
 	Vector3 Sqrt(const float power = 2.0f) const;
 
+
+	//! Umocnìní složek vektoru
+	/*!
+	\return exp(vector->n * power)
+	*/
+	Vector3 Exp(const float power) const;
+
 	void Print();
 
 	// --- operátory ------
