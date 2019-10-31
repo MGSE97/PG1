@@ -13,7 +13,7 @@ newmtl black_plastic
         
 newmtl green_plastic_transparent
 	Ns 32
-	d 0
+	d 0.5
 	Tr 0
 	Tf 1 1 1
 	illum 2

@@ -122,7 +122,7 @@ void Raytracer::LoadScene( const std::string file_name )
 
 RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray)
 {
-	ray.tnear = 0.01f;// FLT_MIN; // start of ray segment
+	ray.tnear = 0.1f;// FLT_MIN; // start of ray segment
 	ray.time = t; // time of this ray for motion blur
 
 	ray.tfar = FLT_MAX; // end of ray segment (set to hit distance)
@@ -153,7 +153,19 @@ Vector3 Raytracer::get_material_color(Vector3 normalVec, Coord2f tex_coord, Mate
 		rtcInitIntersectContext(&context);
 		rtcIntersect1(scene_, &context, &ray_hit);
 
+		bool shadow = false;
+
 		if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+		{
+			Vector3 normal;
+			Coord2f texture;
+			Material* mat;
+			get_geometry_data(ray_hit, normal, texture, mat);
+			if (mat->alpha == 1.f)
+				shadow = true;
+		}
+
+		if(shadow)
 			color = lightPower_.x * material->ambient;
 		else
 		{
@@ -258,13 +270,16 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 			//Prepare next ray data
 			Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
 			Vector3 hitNormal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
-			if (hitNormal.DotProduct(normalVec) < 0)
-				normalVec = -normalVec;
+			hitNormal.Normalize();
+			/*if (hitNormal.DotProduct(normalVec) < 0)
+				normalVec = -normalVec;*/
+			//normalVec = hitNormal;
 			Vector3 resultReflected, resultRefracted;
+
+			Vector3 reflectedVec = (-1 * dir).Reflect(normalVec);
+			reflectedVec.Normalize();
 			if (refl_)
 			{
-				Vector3 reflectedVec = (-1 * dir).Reflect(normalVec);
-				reflectedVec.Normalize();
 
 
 				//Try reflected ray
@@ -278,32 +293,42 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 				resultReflected = color;
 			}
 
-			float R = 0.f, len = ray_hit.ray.tfar;
+			float R = 0.f, len = ray_hit.ray.tfar, n2 = material->ior;
 
-			if (n1 <= 0.f)
-				n1 = IOR_AIR;
 			if (refr_ && material->alpha < 1.f)
 			{
+				if (n1 <= 0.f)
+					n1 = IOR_AIR;
+				else if (n1 > IOR_AIR)
+				{
+					n2 = IOR_AIR;
+				}
 				float	//rp = powf(material->reflectivity, 1 / (float)(++bump)),
 				//tp = 1.0f - rp,
 				//len = ray_hit.ray.tfar,
-					n2 = material->ior,
 					n12 = n1 / n2;
 
 				//Try refracted ray
-				Vector3 dirNormal = dir.CrossProduct(normalVec);
-				Vector3 refractedVec = n12 * dir - (n12*dirNormal + (1.f - powf(n12, 2) * (1.f - dirNormal.Powf())).Sqrt()).CrossProduct(normalVec);
+				//dir.Normalize();
+				Vector3 dirNormal = dir.CrossProduct(-normalVec);
+				auto a = dirNormal.Powf(),
+					b = (1.f - powf(n12, 2.f) * (1.f - a)).Sqrt(),
+					//c = b.CrossProduct(normalVec);
+					c = (n12*dirNormal + b).CrossProduct(-normalVec);
+				Vector3 refractedVec = n12 * dir - c;
+				//refractedVec.Normalize();
+				//Vector3 refractedVec2 = n12 * dir - c.CrossProduct(normalVec);
 
-				/*float
+				float
 					R0 = powf((n1 - n2) / (n1 + n2), 2.f),
-					o = n1 < n2 ? dir.DotProduct(normalVec) : refractedVec.DotProduct(-1.f * normalVec);
-				R = R0 + (1.f - R0)*powf(1.f - cosf(o), 5.f);*/
-				float o1 = dir.DotProduct(normalVec), o2 = refractedVec.DotProduct(-normalVec),
+					o = n1 <= n2 ? dir.DotProduct(-normalVec) : refractedVec.DotProduct(-normalVec);
+				R = R0 + (1.f - R0)*powf(1.f - cosf(o), 5.f);
+				/*float o1 = dir.DotProduct(normalVec), o2 = refractedVec.DotProduct(-normalVec),
 					n2o2 = n2 * cos(o2), n1o1 = n1 * cos(o1),
 					n2o1 = n2 * cos(o1), n1o2 = n1 * cos(o2),
 					Rs = powf((n2o2 - n1o1) / (n2o2 + n1o1), 2.f),
 					Rp = powf((n2o1 - n1o2) / (n2o1 + n1o2), 2.f);
-				R = (Rs + Rp) / 2.f;
+				R = (Rs + Rp) / 2.f;*/
 
 				if (!get_ray_color(prepare_ray_hit(t, generate_ray(hit, refractedVec)), t, resultRefracted, n2, bump))
 				{

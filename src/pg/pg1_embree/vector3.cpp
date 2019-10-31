@@ -94,14 +94,37 @@ Vector3 Vector3::Reflect(const Vector3& v) const
 	return (2.0f*DotProduct(v))*v - *this;
 }
 
+float spowf(const float number, const float power)
+{
+	bool negative = number < 0.f;
+	float result = 0.f;
+	if (negative)
+		result = -powf(-number, power);
+	else
+		result = powf(number, power);
+	return result;
+}
+
 Vector3 Vector3::Powf(const float power) const
 {
-	return Vector3(powf(this->x, power), powf(this->y, power), powf(this->z, power));
+	return Vector3(spowf(this->x, power), spowf(this->y, power), spowf(this->z, power));
+}
+
+float ssqrt(const float number)
+{
+	bool negative = number < 0.f;
+	float result = 0.f;
+	if (negative)
+		result = -sqrt(-number);
+	else
+		result = sqrt(number);
+	return result;
 }
 
 Vector3 Vector3::Sqrt(const float power) const
 {
-	return this->Powf(1.0f / power);
+	//return this->Powf(1.0f / power);
+	return Vector3(ssqrt(this->x), ssqrt(this->y), ssqrt(this->z));
 }
 
 void Vector3::Print()
