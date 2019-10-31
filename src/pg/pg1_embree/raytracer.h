@@ -53,6 +53,7 @@ private:
 	bool refr_{ true };
 	bool refl_{ true };
 
+	float done_ = 0;
 	float f_;
 	int ss_ = 0;
 };

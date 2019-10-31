@@ -7,6 +7,7 @@ Camera::Camera( const int width, const int height, const float fov_y,
 	width_ = width;
 	height_ = height;
 	fov_y_ = fov_y;
+	area_ = width * height;
 
 	view_from_ = view_from;
 	view_at_ = view_at;

@@ -122,7 +122,7 @@ void Raytracer::LoadScene( const std::string file_name )
 
 RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray)
 {
-	ray.tnear = 0.01f;// FLT_MIN; // start of ray segment
+	ray.tnear = 0.1f;// FLT_MIN; // start of ray segment
 	ray.time = t; // time of this ray for motion blur
 
 	ray.tfar = FLT_MAX; // end of ray segment (set to hit distance)
@@ -316,6 +316,7 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 				auto c = (n12*dirNormal + b) * (normalVec);
 				Vector3 refractedVec = n12 * dir - c;
 
+				// Refraction
 				float
 					R0 = powf((n1 - n2) / (n1 + n2), 2.f),
 					o = n1 <= n2 ? dir.DotProduct(normalVec) : refractedVec.DotProduct(normalVec);
@@ -332,6 +333,12 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 					resultRefracted = cubeMap_->get_texel(refractedVec);
 				}
 				else len = 0;
+
+				if ((resultRefracted.x <= 0 && resultRefracted.y <= 0 && resultRefracted.z <= 0) || R <= 0 || R >= 1)
+				{
+					resultRefracted = color;
+					R = powf(material->reflectivity, 1.f / static_cast<float>(bump));
+				}
 			}
 			else
 			{
@@ -360,8 +367,10 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 
 Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 {
-	// TODO generate primary ray and perform ray cast on the scene
-	// TODO	 Super sampling
+	if (x == 0 && y == 0)
+		done_ = 0;
+	else
+		done_ = static_cast<float>(y * camera_.width_ + x) / static_cast<float>(camera_.area_);
 
 	Vector3 color(0,0,0);
 	Vector3 result;
@@ -399,7 +408,11 @@ int Raytracer::Ui()
 
 	// Use a Begin/End pair to created a named window
 	ImGui::Begin( "Ray Tracer Params" );
-	
+
+
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+	ImGui::ProgressBar(done_);
+
 	ImGui::Text( "Surfaces = %d", surfaces_.size() );
 	ImGui::Text( "Materials = %d", materials_.size() );
 	ImGui::Separator();
@@ -427,10 +440,8 @@ int Raytracer::Ui()
 	if (ImGui::Button("Update Target"))
 		camera_.Update();
 		//counter++;
-	ImGui::SameLine();
-	ImGui::Text( "counter = %d", counter );
-
-	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate );
+	/*ImGui::SameLine();
+	ImGui::Text( "counter = %d", counter );*/
 	ImGui::End();
 
 	// 3. Show another simple window.
