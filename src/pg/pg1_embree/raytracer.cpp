@@ -122,7 +122,7 @@ void Raytracer::LoadScene( const std::string file_name )
 
 RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray)
 {
-	ray.tnear = 0.1f;// FLT_MIN; // start of ray segment
+	ray.tnear = 0.01f;// FLT_MIN; // start of ray segment
 	ray.time = t; // time of this ray for motion blur
 
 	ray.tfar = FLT_MAX; // end of ray segment (set to hit distance)
@@ -310,18 +310,15 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, 
 
 				//Try refracted ray
 				//dir.Normalize();
-				Vector3 dirNormal = dir.CrossProduct(-normalVec);
-				auto a = dirNormal.Powf(),
-					b = (1.f - powf(n12, 2.f) * (1.f - a)).Sqrt(),
-					//c = b.CrossProduct(normalVec);
-					c = (n12*dirNormal + b).CrossProduct(-normalVec);
+				float dirNormal = dir.DotProduct(normalVec);
+				auto a = powf(dirNormal, 2.0f),
+					b = sqrt(1.f - powf(n12, 2.f) * (1.f - a));
+				auto c = (n12*dirNormal + b) * (normalVec);
 				Vector3 refractedVec = n12 * dir - c;
-				//refractedVec.Normalize();
-				//Vector3 refractedVec2 = n12 * dir - c.CrossProduct(normalVec);
 
 				float
 					R0 = powf((n1 - n2) / (n1 + n2), 2.f),
-					o = n1 <= n2 ? dir.DotProduct(-normalVec) : refractedVec.DotProduct(-normalVec);
+					o = n1 <= n2 ? dir.DotProduct(normalVec) : refractedVec.DotProduct(normalVec);
 				R = R0 + (1.f - R0)*powf(1.f - cosf(o), 5.f);
 				/*float o1 = dir.DotProduct(normalVec), o2 = refractedVec.DotProduct(-normalVec),
 					n2o2 = n2 * cos(o2), n1o1 = n1 * cos(o1),
@@ -423,7 +420,7 @@ int Raytracer::Ui()
 	ImGui::SliderFloat("Tx", &camera_.view_at_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
 	ImGui::SliderFloat("Ty", &camera_.view_at_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Tz", &camera_.view_at_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 10);
+	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 50);
 	//ImGui::ColorEdit3( "clear color", ( float* )&clear_color ); // Edit 3 floats representing a color
 
 	// Buttons return true when clicked (most widgets return true when edited/activated)
