@@ -117,34 +117,39 @@ void SimpleGuiDX11::Producer()
 
 			auto t2 = std::chrono::high_resolution_clock::now();
 			lastFrame_ = t2 - t0;
-			//#pragma omp parallel for
+			#pragma omp parallel for
 			for ( int x = 0; x < width_; ++x )
 			{	
 				const Color4f pixel = get_pixel( x, y, t );
 				const int offset = ( y * width_ + x ) * 4;
-				int offset2 = (y * width_ + x) * pixel_size;
+				//int offset2 = (y * width_ + x) * pixel_size;
 
 				local_data[offset] = pixel.r;
 				local_data[offset + 1] = pixel.g;
 				local_data[offset + 2] = pixel.b;
 				local_data[offset + 3] = pixel.a;
 
-				RGBQUAD color;
-				color.rgbBlue = pixel.b * 255.f;
-				color.rgbGreen = pixel.g * 255.f;
-				color.rgbRed = pixel.r * 255.f;
-				color.rgbReserved = pixel.a * 255.f;
-				FreeImage_SetPixelColor(bitmap, x, height_ - y, &color);
-				#pragma omp atomic
-				current_++;
+				if (save_)
+				{
+					RGBQUAD color;
+					color.rgbBlue = pixel.b * 255.f;
+					color.rgbGreen = pixel.g * 255.f;
+					color.rgbRed = pixel.r * 255.f;
+					color.rgbReserved = pixel.a * 255.f;
+					FreeImage_SetPixelColor(bitmap, x, height_ - y, &color);
+				}
 			}
+
+			#pragma omp atomic
+			current_ ++;
+
 		}
 
 		t0 = t1;
 
 		// write rendering results
 		{
-			if (running_.count() > 100)
+			if (save_)
 			{
 				char path[100];
 				sprintf(path, "screens/%d.bmp", clock());
@@ -178,7 +183,7 @@ int SimpleGuiDX11::current() const
 
 float SimpleGuiDX11::progress() const
 {
-	return current_ / (float)(width() * height());
+	return current_ / (float)(width_);
 }
 
 int SimpleGuiDX11::MainLoop()
@@ -224,9 +229,9 @@ int SimpleGuiDX11::MainLoop()
 			g_pd3dDeviceContext->Unmap( tex_id_, 0 );
 		}
 
-		//ImGui::Begin( "Image", 0, ImGuiWindowFlags_NoResize );
-		ImGui::Begin("Image", 0, ImGuiWindowFlags_AlwaysAutoResize);
-		ImGui::Image( ImTextureID( tex_view_ ), ImVec2( float( width_/2 ), float( height_/2 ) ) );
+		ImGui::Begin( "Image", 0, ImGuiWindowFlags_NoResize );
+		//ImGui::Begin("Image", 0, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::Image( ImTextureID( tex_view_ ), ImVec2( 960.f, 540.f ) );
 		ImGui::End();
 
 		//ImGui_ImplDX11_RenderDrawData()

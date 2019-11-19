@@ -7,43 +7,23 @@
 #include <chrono>
 #include <iostream>
 
-#define DEBUG
-
-chrono::time_point<chrono::steady_clock> begin()
+chrono::time_point<chrono::steady_clock> Raytracer::begin()
 {
 	return chrono::high_resolution_clock::now();
 }
 
 void Raytracer::log(chrono::time_point<chrono::steady_clock>& begin, string prefix)
 {
-#ifdef DEBUG
-	auto dur = chrono::high_resolution_clock::now() - begin;
-	auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
-	/*if(ms > 1.f)
-		cout << ms << " ms\t-\t" << prefix << endl;*/
-	if (times.find(prefix) == times.end())
-		times[prefix] = ms;
-	else
-		times[prefix] += ms;
-#endif // DEBUG
+	if (debug_)
+		#pragma omp atomic
+		times[prefix] += std::chrono::duration_cast<std::chrono::milliseconds>(chrono::high_resolution_clock::now() - begin).count();
 }
 
 void Raytracer::log(chrono::time_point<chrono::steady_clock>& begin, string prefix, int bump)
 {
-	auto dur = chrono::high_resolution_clock::now() - begin;
-	auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
-	/*
-	string sp = "|";
-	for (int i = 0; i < bump; i++)
-		sp.append(" |");
-	sp.append(" |- ");
-	if (ms > 1.f)
-		cout << sp << ms << " ms\t-\t" << bump << "\t-\t" << prefix << endl;*/
-	string p = prefix.append(" " + std::to_string(bump));
-	if (times.find(p) == times.end())
-		times[p] = ms;
-	else
-		times[p] += ms;
+	if (debug_)
+		#pragma omp atomic
+		times[prefix.append(" " + std::to_string(bump))] += std::chrono::duration_cast<std::chrono::milliseconds>(chrono::high_resolution_clock::now() - begin).count();
 }
 
 
@@ -62,6 +42,13 @@ Raytracer::Raytracer( const int width, const int height,
 
 	e2_ = std::mt19937(rd_());
 	dist_ = std::uniform_real_distribution<>(-0.5f, 0.5f);
+
+	times["get_pixel"] = 0;
+	for (int i = 0; i < 11; i++)
+	{
+		times["reflection " + std::to_string(i)] = 0;
+		times["refraction " + std::to_string(i)] = 0;
+	}
 }
 
 Raytracer::~Raytracer()
@@ -290,29 +277,24 @@ RTCRay Raytracer::generate_ray(Vector3& hit, Vector3& direction)
 
 bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color, float& n1, int bump)
 {
-	auto start = begin();
 
 	// intersect ray with the scene
 	RTCIntersectContext context;
 	rtcInitIntersectContext(&context);
 	rtcIntersect1(scene_, &context, &ray_hit);
 
-	log(start, "!get_ray_color(intersect)", bump);
-
 	if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
 	{
-		auto sss = begin();
 		Vector3 from(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z);
 		Vector3 hit = from + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
 		Vector3 normalVec;
 		Coord2f tex_coord;
 		Material* material;
 		get_geometry_data(ray_hit, normalVec, tex_coord, material);
-
+		
 		if (bump < RAY_MAX_BUMPS)// && material->reflectivity > 0.f)
 		{
 			bump++;
-
 
 			//Prepare next ray data
 			Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
@@ -328,32 +310,27 @@ bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color
 
 			bool reflBaseColor = false;
 
-			//log(sss, "get_ray_color(prepare)", bump-1);
-
-			auto ss = begin();
+			auto start = begin();
 			if (refl_)
 			{
 				//Try reflected ray
 				if (!get_ray_color(*&prepare_ray_hit(t, generate_ray(hit, reflectedVec)), t, resultReflected, material->ior, bump))
 					resultReflected = cubeMap_->get_texel(reflectedVec);
-
-				log(ss, "get_ray_color(reflection)", bump-1);
 			}
 			else
 			{
 				reflBaseColor = true;
 				resultReflected = get_material_color(normalVec, tex_coord, material, hit, from);
-				log(ss, "get_ray_color(reflection base)", bump-1);
 			}
+			log(start, "reflection", bump-1);
 
 			if (n1 <= 0.f)
 				n1 = IOR_AIR;
 			float R = 0.f, len = ray_hit.ray.tfar, n2 = n1 > IOR_AIR ? IOR_AIR : material->ior, n12 = n1 / n2;
 
+			start = begin();
 			if (refr_ && material->alpha < 1.f)
 			{
-				auto s = begin();
-
 				//Try refracted ray
 				float dirNormal = dir.DotProduct(normalVec);
 				auto a = powf(dirNormal, 2.0f),
@@ -373,22 +350,15 @@ bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color
 					Rp = powf((n2o1 - n1o2) / (n2o1 + n1o2), 2.f);
 				R = (Rs + Rp) / 2.f;*/
 
-				//log(s, "get_ray_color(all prepare)", bump-1);
-				auto s2 = begin();
-
 				if (!get_ray_color(*&prepare_ray_hit(t, generate_ray(hit, refractedVec)), t, resultRefracted, n2, bump))
 					resultRefracted = cubeMap_->get_texel(refractedVec);
 				else len = 0; 
-				log(s2, "get_ray_color(all get)", bump-1);
+
 				// Refraction + Reflection + Attenuation
 				color = (resultRefracted * (1.f - R) + resultReflected * R) * material->attenuation.Exp(-len);
-
-				log(s, "get_ray_color(all)", bump-1);
 			}
 			else
 			{
-				auto s = begin();
-
 				//ReflectionOnly(n1, n2, dir, normalVec, R, color, resultReflected);
 
 				// Reflection only
@@ -401,22 +371,16 @@ bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color
 				else
 					color = get_material_color(normalVec, tex_coord, material, hit, from);
 				color += resultReflected * R;
-				log(s, "get_ray_color(reflection only)", bump-1);
 			}
-			bump--;
+			log(start, "refraction", bump-1);
 		}
 		else
 		{
-			//auto s = begin();
 			color = get_material_color(normalVec, tex_coord, material, hit, from);
-			//log(s, "get_ray_color(base)", bump);
 		}
 
-		log(start, "!get_ray_color(hit)", bump);
 		return true;
 	}
-
-	log(start, "!get_ray_color(fail)", bump);
 
 	return false;
 }
@@ -432,59 +396,56 @@ void Raytracer::ReflectionOnly(float n1, float n2, Vector3& dir, Vector3& normal
 	color += resultReflected * R;
 }
 
+Vector3 Raytracer::get_pixel_internal(const int x, const int y, const int t)
+{
+	Vector3 color(0, 0, 0);
+	auto ray = camera_.GenerateRay(x, y);
+	auto ior = IOR_AIR;
+	if (!get_ray_color(*&prepare_ray_hit(t, ray), t, color, ior, 0))
+		// Background
+		color = cubeMap_->get_texel(Vector3(ray.dir_x, ray.dir_y, ray.dir_z));
+	return color;
+}
+
 Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 {
-//	if (done_ == camera_.area_)//(x == 0 && y == 0)
-//		done_ = 0;
-//	else
-//		//done_ = static_cast<float>(y * camera_.width_ + x) / static_cast<float>(camera_.area_);
-//		done_++;
-//	rendered_ = done_ / static_cast<float>(camera_.area_);
-
 	auto start = begin();
 
 	Vector3 color(0,0,0);
-	Vector3 result;
-	int count = 0;
-	//#pragma omp parallel for
-	for(int i = -ss_; i <= ss_; i++)
-		//#pragma omp parallel for
-		for(int j = -ss_; j <= ss_; j++)
-		{
-			//const float dx = get_random_float(), dy = get_random_float();
-			const float dx = i * 0.25f, dy = j * 0.25f;
-			auto ray = camera_.GenerateRay(x + dx, y + dy);
-			auto ior = IOR_AIR;
-			if (!get_ray_color(*&prepare_ray_hit(t, ray), t, result, ior, 0))
-				// Background
-				color += cubeMap_->get_texel(Vector3(ray.dir_x, ray.dir_y, ray.dir_z));
-			else
-				color += result;
-			count++;
-		}
-	color /= (float)count;
+	if (ss_ == 0)
+		color = get_pixel_internal(x, y, t);
+	else
+	{
+		int count = 0;
+		for (int i = -ss_; i <= ss_; i++)
+			for (int j = -ss_; j <= ss_; j++)
+			{
+				//const float dx = get_random_float(), dy = get_random_float();
+				const float dx = i * 0.25f, dy = j * 0.25f;
+				color += get_pixel_internal(x + dx, y + dy, t);
+				count++;
+			}
+		color /= (float)count;
+	}
 	color = SrgbTransform::linearToSrgb(color);
 
-#ifdef DEBUG
-	log(start, "!get_pixel");
-
-	if (x == 1)
+	if (debug_)
 	{
-		auto max = 0.0f;
-		for (auto& x : times)
-			if (x.second > max)
-				max += x.second;
-		times_text.clear();
-		for (auto& x : times)
-			if (x.second >= 1000 || x.first[0] == '!')
-				times_text.append(std::to_string((int)(x.second / 1000)) + " s\t" + std::to_string((int)(x.second / max * 100.f)) + " %\t" + x.first + "\n");
+		log(start, "get_pixel");
+
+		if (x == 1)
+		{
+			auto max = 0.0f;
+			for (auto& x : times)
+				if (x.second > max)
+					max += x.second;
+			times_text.clear();
+			for (auto& x : times)
+				times_text.append(std::to_string((int)(x.second / max * 100.f)) + " %\t\t" + x.first + "\t\t\t" + std::to_string(x.second / 1000.0f) + " s\n");
+		}
 	}
-#endif // DEBUG
 
 	return Color4f{ color.x, color.y, color.z, 1 };
-
-	// Background
-	//return Color4f{ 0.2,0.2,0.2,1 };
 }
 
 float Raytracer::get_random_float()
@@ -503,14 +464,17 @@ int Raytracer::Ui()
 
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 	ImGui::ProgressBar(progress());
-	ImGui::Text("Progress = %d / %d\t[%d x %d]", current(), (width() * height()), width(), height());
-	ImGui::Text("Time = Done: %.2f s \t Left: %.2f s", lastFrame_.count(), (lastFrame_.count() / current()) * (width() * height() - current()));
+	ImGui::Text("Progress = %d / %d\t[%d x %d]", current(), width(), width(), height());
+	ImGui::Text("Time = Done: %.2f s \t Left: %.2f s", lastFrame_.count(), (lastFrame_.count() / current()) * (width() - current()));
+	//ImGui::Text("Time = %.2f", lastFrame_.count());
 	ImGui::Text("Surfaces = %d", surfaces_.size());
 	ImGui::Text("Materials = %d", materials_.size());
 	ImGui::Separator();
-	ImGui::Checkbox( "Vsync", &vsync_ );
-	ImGui::Checkbox("Refraction", &refr_);
+	ImGui::Checkbox("Debug", &debug_);
+	ImGui::Checkbox("Save", &save_);
+	ImGui::Checkbox("Vsync", &vsync_ );
 	ImGui::Checkbox("Reflection", &refl_);
+	ImGui::Checkbox("Refraction", &refr_);
 	
 	//ImGui::Checkbox( "Demo Window", &show_demo_window ); // Edit bools storing our window open/close state
 	//ImGui::Checkbox( "Another Window", &show_another_window );
@@ -525,7 +489,7 @@ int Raytracer::Ui()
 	ImGui::SliderFloat("Tx", &camera_.view_at_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
 	ImGui::SliderFloat("Ty", &camera_.view_at_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Tz", &camera_.view_at_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 30);
+	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 10);
 	//ImGui::ColorEdit3( "clear color", ( float* )&clear_color ); // Edit 3 floats representing a color
 
 	// Buttons return true when clicked (most widgets return true when edited/activated)

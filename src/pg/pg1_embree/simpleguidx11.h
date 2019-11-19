@@ -39,6 +39,8 @@ protected:
 	float progress() const;
 
 	bool vsync_{ true };
+	bool debug_{ false };
+	bool save_{ false };
 	std::chrono::duration<float> lastFrame_;
 	std::chrono::duration<float> running_;
 

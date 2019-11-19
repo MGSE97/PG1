@@ -30,6 +30,7 @@ public:
 
 	bool get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color, float& n1, int bump);
 	void ReflectionOnly(float n1, float n2, Vector3& dir, Vector3& normalVec, float& R, Vector3& color, Vector3& resultReflected);
+	Vector3 get_pixel_internal(int x, int y, int t);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 	float get_random_float();
 	RTCRay generate_ray(Vector3& hit, Vector3& direction);
@@ -60,6 +61,7 @@ private:
 
 	string times_text = "";
 	map<string, float> times;
+	chrono::time_point<chrono::steady_clock> begin();
 	void log(chrono::time_point<chrono::steady_clock>& begin, string prefix);
 	void log(chrono::time_point<chrono::steady_clock>& begin, string prefix, int bump);
 };
