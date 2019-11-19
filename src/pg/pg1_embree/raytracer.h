@@ -25,10 +25,10 @@ public:
 
 	void LoadScene( const std::string file_name );
 	RTCRayHit prepare_ray_hit(float t, RTCRay ray);
-	Vector3 get_material_color(Vector3 normalVec, Coord2f tex_coord, Material* material, Vector3 hit, Vector3 origin);
-	void get_geometry_data(RTCRayHit ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
+	Vector3 get_material_color(Vector3& normalVec, Coord2f& tex_coord, Material* material, Vector3& hit, Vector3& origin);
+	void get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
-	bool get_ray_color(RTCRayHit ray_hit, const float t, Vector3& color, float n1, int bump);
+	bool get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color, float& n1, int bump);
 	void ReflectionOnly(float n1, float n2, Vector3& dir, Vector3& normalVec, float& R, Vector3& color, Vector3& resultReflected);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 	float get_random_float();
@@ -57,4 +57,9 @@ private:
 	int done_ = 0;
 	float f_, rendered_ = 0;
 	int ss_ = 0;
+
+	string times_text = "";
+	map<string, float> times;
+	void log(chrono::time_point<chrono::steady_clock>& begin, string prefix);
+	void log(chrono::time_point<chrono::steady_clock>& begin, string prefix, int bump);
 };

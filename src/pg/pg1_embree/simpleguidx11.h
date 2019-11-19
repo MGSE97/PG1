@@ -1,6 +1,9 @@
 #pragma once
 #include "simpleguidx11.h"
 #include "structs.h"
+#include "time.h"
+#include <FreeImage.h>
+#include <fstream>
 
 class SimpleGuiDX11
 {
@@ -32,8 +35,12 @@ protected:
 
 	int width() const;
 	int height() const;
+	int current() const;
+	float progress() const;
 
 	bool vsync_{ true };
+	std::chrono::duration<float> lastFrame_;
+	std::chrono::duration<float> running_;
 
 private:	
 	WNDCLASSEX wc_;
@@ -48,6 +55,7 @@ private:
 	ID3D11ShaderResourceView * tex_view_{nullptr};
 	int width_{ 640 };
 	int height_{ 480 };
+	int current_{ 0 };
 	float * tex_data_{ nullptr }; // DXGI_FORMAT_R32G32B32A32_FLOAT
 	std::mutex tex_data_lock_;
 		

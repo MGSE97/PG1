@@ -11,6 +11,7 @@ SimpleGuiDX11::SimpleGuiDX11( const int width, const int height)
 
 int SimpleGuiDX11::Init()
 {
+	FreeImage_Initialise();
 	// Create application window
 	wc_ = { sizeof( WNDCLASSEX ), CS_CLASSDC, s_WndProc, 0L, 0L,
 		GetModuleHandle( NULL ), NULL, NULL, NULL, NULL, _T( "ImGui Example" ), NULL };
@@ -61,6 +62,8 @@ SimpleGuiDX11::~SimpleGuiDX11()
 
 int SimpleGuiDX11::Cleanup()
 {
+	FreeImage_DeInitialise();
+
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
@@ -91,6 +94,8 @@ void SimpleGuiDX11::sample(int x, int y, float t, Color4f* result)
 void SimpleGuiDX11::Producer()
 {
 	float * local_data = new float[width_*height_ * 4];
+	int pixel_size = 24;
+	FIBITMAP* bitmap = FreeImage_Allocate(width_, height_, pixel_size);
 
 	float t = 0.0f; // time
 	auto t0 = std::chrono::high_resolution_clock::now();
@@ -99,38 +104,61 @@ void SimpleGuiDX11::Producer()
 	//for ( float t = 0.0f; t < 1e+3 && !finish_request_.load( std::memory_order_acquire ); t += float( 1e-1 ) )
 	while (!finish_request_.load(std::memory_order_acquire))
 	{
+		current_ = 0;
 		auto t1 = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<float> dt = t1 - t0;
-		t += dt.count();
-		t0 = t1;
+		running_ = t1 - t0;
+		t += running_.count();
 
 		// compute rendering
 		//std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
-
-		#pragma omp parallel for
+		//#pragma omp parallel for
 		for ( int y = 0; y < height_; ++y )
 		{
+
+			auto t2 = std::chrono::high_resolution_clock::now();
+			lastFrame_ = t2 - t0;
+			//#pragma omp parallel for
 			for ( int x = 0; x < width_; ++x )
 			{	
 				const Color4f pixel = get_pixel( x, y, t );
 				const int offset = ( y * width_ + x ) * 4;
+				int offset2 = (y * width_ + x) * pixel_size;
 
 				local_data[offset] = pixel.r;
 				local_data[offset + 1] = pixel.g;
 				local_data[offset + 2] = pixel.b;
 				local_data[offset + 3] = pixel.a;
-				//pixel.copy( local_data[offset] );
+
+				RGBQUAD color;
+				color.rgbBlue = pixel.b * 255.f;
+				color.rgbGreen = pixel.g * 255.f;
+				color.rgbRed = pixel.r * 255.f;
+				color.rgbReserved = pixel.a * 255.f;
+				FreeImage_SetPixelColor(bitmap, x, height_ - y, &color);
+				#pragma omp atomic
+				current_++;
 			}
 		}
 
+		t0 = t1;
+
 		// write rendering results
 		{
+			if (running_.count() > 100)
+			{
+				char path[100];
+				sprintf(path, "screens/%d.bmp", clock());
+				printf("saving %s\n", path);
+				FreeImage_Save(FIF_PNG, bitmap, path, PNG_DEFAULT);
+			}
 			std::lock_guard<std::mutex> lock( tex_data_lock_ );
 			memcpy( tex_data_, local_data, width_ * height_ * 4 * sizeof( float ) );			
 		} // lock release
+
 	}
 
 	delete[] local_data;
+	//delete[] bytes;
 }
 
 int SimpleGuiDX11::width() const
@@ -141,6 +169,16 @@ int SimpleGuiDX11::width() const
 int SimpleGuiDX11::height() const
 {
 	return height_;
+}
+
+int SimpleGuiDX11::current() const
+{
+	return current_;
+}
+
+float SimpleGuiDX11::progress() const
+{
+	return current_ / (float)(width() * height());
 }
 
 int SimpleGuiDX11::MainLoop()
@@ -188,7 +226,7 @@ int SimpleGuiDX11::MainLoop()
 
 		//ImGui::Begin( "Image", 0, ImGuiWindowFlags_NoResize );
 		ImGui::Begin("Image", 0, ImGuiWindowFlags_AlwaysAutoResize);
-		ImGui::Image( ImTextureID( tex_view_ ), ImVec2( float( width_ ), float( height_ ) ) );
+		ImGui::Image( ImTextureID( tex_view_ ), ImVec2( float( width_/2 ), float( height_/2 ) ) );
 		ImGui::End();
 
 		//ImGui_ImplDX11_RenderDrawData()
