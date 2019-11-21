@@ -61,6 +61,10 @@ public:
 	*/
 	Vector3( const float * v );
 
+	Vector3 Reflect(const Vector3& v) const;
+
+	Vector3 Exp(const float power) const;
+
 	//! L2-norma vektoru.
 	/*!
 	\return x Hodnotu \f$\mathbf{||v||}=\sqrt{x^2+y^2+z^2}\f$.
@@ -105,32 +109,7 @@ public:
 
 	\return Index nejvìtší složky vektoru.
 	*/
-	char LargestComponent( const bool absolute_value = false );
-	
-	//! Pøeklopení vektoru podel vektoru
-	/*!
-	\return Reflect.
-	*/
-	Vector3 Reflect(const Vector3 & v) const;
-
-	//! Umocnìní vektoru
-	/*!
-	\return powf(vector, power)
-	*/
-	Vector3 Powf(const float power = 2.0f) const;
-	
-	//! Odmocnìní vektoru
-	/*!
-	\return sqrt(vector, power)
-	*/
-	Vector3 Sqrt(const float power = 2.0f) const;
-
-
-	//! Umocnìní složek vektoru
-	/*!
-	\return exp(vector->n * power)
-	*/
-	Vector3 Exp(const float power) const;
+	char LargestComponent( const bool absolute_value = false );	
 
 	void Print();
 
@@ -139,9 +118,7 @@ public:
 	friend Vector3 operator-( const Vector3 & v );
 
 	friend Vector3 operator+( const Vector3 & u, const Vector3 & v );
-	friend Vector3 operator+(const float a, const Vector3 & v);
 	friend Vector3 operator-( const Vector3 & u, const Vector3 & v );
-	friend Vector3 operator-(const float a, const Vector3 & v);
 
 	friend Vector3 operator*( const Vector3 & v, const float a );	
 	friend Vector3 operator*( const float a, const Vector3 & v );

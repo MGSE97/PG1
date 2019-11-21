@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "vector3.h"
 #include "mymath.h"
-#include <math.h>
 
 Vector3::Vector3( const float * v )
 {
@@ -10,6 +9,15 @@ Vector3::Vector3( const float * v )
 	x = v[0];
 	y = v[1];
 	z = v[2];
+}
+
+Vector3 Vector3::Reflect(const Vector3& v) const
+{
+	return (2.0f * DotProduct(v)) * v - *this;
+}
+Vector3 Vector3::Exp(const float power) const
+{
+	return Vector3(exp(this->x * power), exp(this->y * power), exp(this->z * power));
 }
 
 float Vector3::L2Norm() const
@@ -89,49 +97,6 @@ char Vector3::LargestComponent( const bool absolute_value )
 	return -1;
 }
 
-Vector3 Vector3::Reflect(const Vector3& v) const
-{
-	return (2.0f*DotProduct(v))*v - *this;
-}
-
-float spowf(const float number, const float power)
-{
-	bool negative = number < 0.f;
-	float result = 0.f;
-	if (negative)
-		result = -powf(-number, power);
-	else
-		result = powf(number, power);
-	return result;
-}
-
-Vector3 Vector3::Powf(const float power) const
-{
-	return Vector3(spowf(this->x, power), spowf(this->y, power), spowf(this->z, power));
-}
-
-float ssqrt(const float number)
-{
-	bool negative = number < 0.f;
-	float result = 0.f;
-	if (negative)
-		result = -sqrt(-number);
-	else
-		result = sqrt(number);
-	return result;
-}
-
-Vector3 Vector3::Sqrt(const float power) const
-{
-	//return this->Powf(1.0f / power);
-	return Vector3(ssqrt(this->x), ssqrt(this->y), ssqrt(this->z));
-}
-
-Vector3 Vector3::Exp(const float power) const
-{
-	return Vector3(exp(this->x*power), exp(this->y*power), exp(this->z*power));
-}
-
 void Vector3::Print()
 {
 	printf( "(%0.3f, %0.3f, %0.3f)\n", x, y, z ); 
@@ -150,19 +115,9 @@ Vector3 operator+( const Vector3 & u, const Vector3 & v )
 	return Vector3( u.x + v.x, u.y + v.y, u.z + v.z );
 }
 
-Vector3 operator+(const float a, const Vector3 & v)
-{
-	return Vector3(a + v.x, a + v.y, a + v.z);
-}
-
 Vector3 operator-( const Vector3 & u, const Vector3 & v )
 {
 	return Vector3( u.x - v.x, u.y - v.y, u.z - v.z );
-}
-
-Vector3 operator-(const float a, const Vector3 & v)
-{
-	return Vector3(a - v.x, a - v.y, a - v.z);
 }
 
 Vector3 operator*( const Vector3 & v, const float a )

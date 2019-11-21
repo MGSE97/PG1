@@ -300,9 +300,7 @@ bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color
 			Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
 			Vector3 hitNormal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
 			hitNormal.Normalize();
-			/*if (hitNormal.DotProduct(normalVec) < 0)
-				normalVec = -normalVec;*/
-				//normalVec = hitNormal;
+
 			Vector3 resultReflected, resultRefracted;
 
 			Vector3 reflectedVec = (-dir).Reflect(normalVec);
@@ -359,8 +357,6 @@ bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color
 			}
 			else
 			{
-				//ReflectionOnly(n1, n2, dir, normalVec, R, color, resultReflected);
-
 				// Reflection only
 				float
 					R0 = powf((n1 - n2) / (n1 + n2), 2.f),
@@ -383,17 +379,6 @@ bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color
 	}
 
 	return false;
-}
-
-void Raytracer::ReflectionOnly(float n1, float n2, Vector3& dir, Vector3& normalVec, float& R, Vector3& color, Vector3& resultReflected)
-{
-
-	// Reflection only
-	float
-		R0 = powf((n1 - n2) / (n1 + n2), 2.f),
-		o = dir.DotProduct(normalVec);
-	R = R0 + (1.f - R0) * powf(1.f - cosf(o), 5.f);
-	color += resultReflected * R;
 }
 
 Vector3 Raytracer::get_pixel_internal(const int x, const int y, const int t)

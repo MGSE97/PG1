@@ -29,7 +29,6 @@ public:
 	void get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
 	bool get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color, float& n1, int bump);
-	void ReflectionOnly(float n1, float n2, Vector3& dir, Vector3& normalVec, float& R, Vector3& color, Vector3& resultReflected);
 	Vector3 get_pixel_internal(int x, int y, int t);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 	float get_random_float();
