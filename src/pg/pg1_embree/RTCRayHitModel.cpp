@@ -52,9 +52,10 @@ void RTCRayHitModel::calc_fresnel()
 {
 	calc_reflection();
 	calc_refraction();
+
 	float
-		o = n1 <= n2 ? dir.DotProduct(normal) : refracted.DotProduct(normal),
-		cosi = cos(o),
+		o = n1 <= n2 ? dir.DotProduct(normal) : refracted.DotProduct(-normal),
+		cosi = cosf(o),
 		sini = 1.f - cosi;
 	// Total internal reflection
 	if (sini >= 1) {
@@ -62,18 +63,18 @@ void RTCRayHitModel::calc_fresnel()
 	}
 	else {
 		// Compute fresnel
-		/*float
+		float
 			n12 = (n1 - n2) / (n1 + n2),
-			R0 = n12 * n12,
-		R = R0 + (1.f - R0) * sini * sini * sini * sini * sini;*/
+			R0 = n12 * n12;
+		R = max(R0 + (1.f - R0) * sini * sini * sini * sini * sini, 0);
 		
-		float o1 = dir.DotProduct(normal), o2 = refracted.DotProduct(-normal),
+		/*float o1 = dir.DotProduct(normal), o2 = refracted.DotProduct(-normal),
 			co1 = cos(o1), co2 = cos(o2),
 			n2o2 = n2 * co2, n1o1 = n1 * co1,
 			n2o1 = n2 * co1, n1o2 = n1 * co2,
 			Rs = (n2o2 - n1o1) / (n2o2 + n1o1),
 			Rp = (n2o1 - n1o2) / (n2o1 + n1o2);
-		R = (Rs*Rs + Rp*Rp) / 2.f;
+		R = (Rs*Rs + Rp*Rp) / 2.f;*/
 	}
 }
 

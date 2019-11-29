@@ -152,9 +152,9 @@ void Raytracer::LoadScene( const std::string file_name )
 }
 
 
-RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray)
+RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray, const float& tnear)
 {
-	ray.tnear = 0.1f;// FLT_MIN; // start of ray segment
+	ray.tnear = tnear;// FLT_MIN; // start of ray segment
 	ray.time = t; // time of this ray for motion blur
 
 	ray.tfar = FLT_MAX; // end of ray segment (set to hit distance)
@@ -180,7 +180,23 @@ Vector3 Raytracer::get_material_color(Vector3 &normalVec, Coord2f &tex_coord, Ma
 	if(material != nullptr)
 	{
 		// Check Shadow
-		const bool shadow = has_colision(cast_ray(hit, light_, 0));
+		bool shadow = false;
+		auto ray = cast_ray(hit, light_, 0);
+		if (has_colision(ray))
+		{
+			auto data = build_ray_model(ray, material->ior);
+			while (!has_colision(data))
+			{
+				ray = cast_ray(hit, light_, 0, data.core.ray.tfar + 0.1f);
+				if (has_colision(ray))
+					data = build_ray_model(ray, material->ior);
+				else
+					break;
+			}
+
+			if (has_colision(data))
+				shadow = true;
+		}
 		
 		if(shadow)
 			color = lightPower_.x * material->ambient;
@@ -263,9 +279,9 @@ RTCRay Raytracer::generate_ray(const Vector3& hit, const Vector3& direction)
 	return ray;
 }
 
-RTCRayHit Raytracer::cast_ray(const Vector3& position, const Vector3& direction, const float& t)
+RTCRayHit Raytracer::cast_ray(const Vector3& position, const Vector3& direction, const float& t, const float& tnear)
 {
-	RTCRayHit ray_hit = prepare_ray_hit(t, generate_ray(position, direction));
+	RTCRayHit ray_hit = prepare_ray_hit(t, generate_ray(position, direction), tnear);
 	RTCIntersectContext context;
 	rtcInitIntersectContext(&context);
 	rtcIntersect1(scene_, &context, &ray_hit);
@@ -289,6 +305,11 @@ RTCRayHitModel Raytracer::build_ray_model(const RTCRayHit& hit, const float& ior
 bool Raytracer::has_colision(const RTCRayHit& hit)
 {
 	return hit.hit.geomID != RTC_INVALID_GEOMETRY_ID;
+}
+
+bool Raytracer::has_colision(const RTCRayHitModel& hit)
+{
+	return hit.material->alpha >= 1.f;
 }
 
 RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump)
@@ -318,7 +339,7 @@ RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump)
 		}
 	}
 
-	if (rays_ && bump <= 1)
+	if (rays_ && bump == RAY_MAP_BUMP)
 		collision = RayMap;
 
 	return collision;
@@ -330,7 +351,6 @@ int Raytracer::get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int b
 	if (has_colision(ray_hit))
 	{
 		auto data = build_ray_model(ray_hit, n1);
-		float distance = data.core.ray.tfar;
 		bump++;
 		switch (get_collision_type(data, bump))
 		{
@@ -344,7 +364,7 @@ int Raytracer::get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int b
 			count += get_ray_count(cast_ray(data.hit, data.refracted, t), t, data.n2, bump);
 
 			// Reflection
-			count += get_ray_count(cast_ray(data.hit, data.reflected, t), t, data.n1, bump);
+			count += get_ray_count(cast_ray(data.hit, data.reflected, t), t, data.n1, bump) + 1;
 			break;
 
 		case Refraction:
@@ -352,13 +372,11 @@ int Raytracer::get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int b
 			break;
 
 		case Reflection:
-			count = get_ray_count(cast_ray(data.hit, data.reflected, t), t, data.n1, bump);
+			count = get_ray_count(cast_ray(data.hit, data.reflected, t), t, data.n1, bump) + 1;
 			break;
 		}
-		return true;
 	}
-
-	return false;
+	return count;
 }
 
 bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump)
@@ -409,9 +427,10 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color,
 				break;
 
 			case RayMap:
-				float count = get_ray_count(ray_hit, t, n1, bump - 1) + 1;
-				count = count / (float)pow(RAY_MAX_BUMPS, refl_ ? refr_ ? 3 : 2 : refr_ ? 2 : 1);
-				color = Vector3(count, 0, 0);
+				float count = (float)get_ray_count(ray_hit, t, n1, bump - 1) + 1;
+				count = count / (float)pow(RAY_MAX_BUMPS, 1 + refl_ + refr_);
+				// cout, refracted, reflected
+				color = Vector3(count, data.R, 1.f-data.R);
 				break;
 		}
 		return true;
@@ -517,6 +536,7 @@ int Raytracer::Ui()
 	ImGui::SliderFloat("Tx", &camera_.view_at_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
 	ImGui::SliderFloat("Ty", &camera_.view_at_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	ImGui::SliderFloat("Tz", &camera_.view_at_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderInt("Ray map depth", &RAY_MAP_BUMP, 0, 10);
 	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 10);
 	//ImGui::ColorEdit3( "clear color", ( float* )&clear_color ); // Edit 3 floats representing a color
 

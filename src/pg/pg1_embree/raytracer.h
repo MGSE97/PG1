@@ -26,7 +26,7 @@ public:
 	int ReleaseDeviceAndScene();
 
 	void LoadScene( const std::string file_name );
-	RTCRayHit prepare_ray_hit(float t, RTCRay ray);
+	RTCRayHit prepare_ray_hit(float t, RTCRay ray, const float& tnear = 0.1f);
 	Vector3 get_material_color(Vector3& normalVec, Coord2f& tex_coord, Material* material, Vector3& hit, Vector3& origin);
 	//void get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
@@ -35,10 +35,11 @@ public:
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 	float get_random_float();
 	RTCRay generate_ray(const Vector3& hit, const Vector3& direction);
-	RTCRayHit cast_ray(const Vector3& position, const Vector3& direction, const float& t);
+	RTCRayHit cast_ray(const Vector3& position, const Vector3& direction, const float& t, const float& tnear = 0.1f);
 	RTCRayHit cast_ray(const RTCRay& ray, const float& t);
 	RTCRayHitModel build_ray_model(const RTCRayHit& hit, const float& ior);
 	static bool has_colision(const RTCRayHit& hit);
+	static bool has_colision(const RTCRayHitModel& hit);
 	RayCollision get_collision_type(RTCRayHitModel& hit, const int bump);
 	int get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int bump);
 
@@ -59,6 +60,7 @@ private:
 	Vector3 lightPower_;
 	float MAX_RAYS = 3628800.f;
 	int RAY_MAX_BUMPS = 0;
+	int RAY_MAP_BUMP = 0;
 	CubeMap* cubeMap_;
 	bool refr_{ true };
 	bool refl_{ true };
