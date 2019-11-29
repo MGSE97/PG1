@@ -26,9 +26,21 @@
 
 namespace SrgbTransform {
 
+	float tonemap(float x)
+	{
+		x *= 3.0f;
+		x = x / (1.f + x);
+		return x;
+	}
+	
+	Vector3 tonemap(Vector3 color)
+	{
+		return Vector3(tonemap(color.x), tonemap(color.y), tonemap(color.z));
+	}
+
 	/*---- sRGB values to linear intensities ----*/
 
-	float srgbToLinear(float x) {
+	float srgbToLinear(float x, double gamma) {
 		if (x <= 0.0f)
 			return 0.0f;
 		else if (x >= 1.0f)
@@ -36,11 +48,11 @@ namespace SrgbTransform {
 		else if (x < 0.04045f)
 			return x / 12.92f;
 		else
-			return powf((x + 0.055f) / 1.055f, 2.4f);
+			return powf((x + 0.055f) / 1.055f, gamma);
 	}
 
 
-	double srgbToLinear(double x) {
+	double srgbToLinear(double x, double gamma) {
 		if (x <= 0.0)
 			return 0.0;
 		else if (x >= 1.0)
@@ -48,17 +60,17 @@ namespace SrgbTransform {
 		else if (x < 0.04045)
 			return x / 12.92;
 		else
-			return powf((x + 0.055) / 1.055, 2.4);
+			return powf((x + 0.055) / 1.055, gamma);
 	}
 
-	Vector3 srgbToLinear(Vector3 srgb)
+	Vector3 srgbToLinear(Vector3 srgb, double gamma)
 	{
-		return Vector3(srgbToLinear(srgb.x), srgbToLinear(srgb.y), srgbToLinear(srgb.z));
+		return Vector3(srgbToLinear(srgb.x, gamma), srgbToLinear(srgb.y, gamma), srgbToLinear(srgb.z, gamma));
 	}
 
 	/*---- Linear intensities to sRGB values ----*/
 
-	float linearToSrgb(float x) {
+	float linearToSrgb(float x, double gamma) {
 		if (x <= 0.0f)
 			return 0.0f;
 		else if (x >= 1.0f)
@@ -66,11 +78,11 @@ namespace SrgbTransform {
 		else if (x < 0.0031308f)
 			return x * 12.92f;
 		else
-			return powf(x, 1.0f / 2.4f) * 1.055f - 0.055f;
+			return powf(x, 1.0f / gamma) * 1.055f - 0.055f;
 	}
 
 
-	double linearToSrgb(double x) {
+	double linearToSrgb(double x, double gamma) {
 		if (x <= 0.0)
 			return 0.0;
 		else if (x >= 1.0)
@@ -78,11 +90,11 @@ namespace SrgbTransform {
 		else if (x < 0.0031308)
 			return x * 12.92;
 		else
-			return powf(x, 1.0 / 2.4) * 1.055 - 0.055;
+			return powf(x, 1.0 / gamma) * 1.055 - 0.055;
 	}
 
-	Vector3 linearToSrgb(Vector3 linear)
+	Vector3 linearToSrgb(Vector3 linear, double gamma)
 	{
-		return Vector3(linearToSrgb(linear.x), linearToSrgb(linear.y), linearToSrgb(linear.z));
+		return Vector3(linearToSrgb(linear.x, gamma), linearToSrgb(linear.y, gamma), linearToSrgb(linear.z, gamma));
 	}
 }

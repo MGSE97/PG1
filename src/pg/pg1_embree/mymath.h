@@ -29,4 +29,12 @@ inline float deg2rad( const float x )
 	return x * float( M_PI ) / 180.0f;
 }
 
+inline int fact(const int x)
+{
+	int val = 1;
+	for (int i = x; i > 0; i--)
+		val *= i;
+	return val;
+}
+
 #endif

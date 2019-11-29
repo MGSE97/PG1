@@ -27,13 +27,14 @@
 
 
 namespace SrgbTransform {
+	float tonemap(float x);
+	Vector3 tonemap(Vector3 color);
 
-float srgbToLinear(float x);
-double srgbToLinear(double x); 
-Vector3 srgbToLinear(Vector3 srgb);
+	float srgbToLinear(float x, double gamma = 2.4);
+	double srgbToLinear(double x, double gamma = 2.4);
+	Vector3 srgbToLinear(Vector3 srgb, double gamma = 2.4);
 
-float linearToSrgb(float x);
-double linearToSrgb(double x);
-Vector3 linearToSrgb(Vector3 linear);
-
+	float linearToSrgb(float x, double gamma = 2.4);
+	double linearToSrgb(double x, double gamma = 2.4);
+	Vector3 linearToSrgb(Vector3 linear, double gamma = 2.4);
 }

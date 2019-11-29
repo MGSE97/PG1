@@ -111,13 +111,13 @@ void SimpleGuiDX11::Producer()
 
 		// compute rendering
 		//std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
-		//#pragma omp parallel for
+		#pragma omp parallel for
 		for ( int y = 0; y < height_; ++y )
 		{
 
 			auto t2 = std::chrono::high_resolution_clock::now();
 			lastFrame_ = t2 - t0;
-			#pragma omp parallel for
+			//#pragma omp parallel for
 			for ( int x = 0; x < width_; ++x )
 			{	
 				const Color4f pixel = get_pixel( x, y, t );

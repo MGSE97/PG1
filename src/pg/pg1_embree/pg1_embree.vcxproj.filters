@@ -108,6 +108,9 @@
     <ClInclude Include="SrgbTransform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="RTCRayHitModel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -180,6 +183,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SrgbTransform.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RTCRayHitModel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

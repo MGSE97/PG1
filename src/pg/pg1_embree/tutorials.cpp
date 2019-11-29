@@ -201,7 +201,9 @@ int tutorial_4(const std::string file_name, const char * config)
 	//SimpleGuiDX11 gui( 640, 480 );
 	//gui.MainLoop();
 
-	Raytracer raytracer(640, 480, deg2rad(45.0),
+	/*Raytracer raytracer(640, 480, deg2rad(45.0),
+		Vector3(2, -3, 0), Vector3(0, 0, 0), config);*/
+	Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(45.0),
 		Vector3(2, -3, 0), Vector3(0, 0, 0), config);
 	raytracer.LoadScene(file_name);
 	raytracer.MainLoop();

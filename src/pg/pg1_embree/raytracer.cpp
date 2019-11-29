@@ -6,6 +6,9 @@
 #include "SrgbTransform.h"
 #include <chrono>
 #include <iostream>
+#include <float.h>
+#include "RTCRayHitModel.h"
+#include "mymath.h"
 
 chrono::time_point<chrono::steady_clock> Raytracer::begin()
 {
@@ -177,23 +180,8 @@ Vector3 Raytracer::get_material_color(Vector3 &normalVec, Coord2f &tex_coord, Ma
 	if(material != nullptr)
 	{
 		// Check Shadow
-		auto ray_hit = prepare_ray_hit(0, generate_ray(hit, light_));
-		RTCIntersectContext context;
-		rtcInitIntersectContext(&context);
-		rtcIntersect1(scene_, &context, &ray_hit);
-
-		bool shadow = false;
-
-		if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
-		{
-			Vector3 normal;
-			Coord2f texture;
-			Material* mat;
-			get_geometry_data(ray_hit, normal, texture, mat);
-			if (mat->alpha == 1.f)
-				shadow = true;
-		}
-
+		const bool shadow = has_colision(cast_ray(hit, light_, 0));
+		
 		if(shadow)
 			color = lightPower_.x * material->ambient;
 		else
@@ -239,7 +227,7 @@ Vector3 Raytracer::get_material_color(Vector3 &normalVec, Coord2f &tex_coord, Ma
 	return SrgbTransform::srgbToLinear(color);
 }
 
-void Raytracer::get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material)
+/*void Raytracer::get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material)
 {
 	// we hit something
 	RTCGeometry geometry = rtcGetGeometry(scene_, ray_hit.hit.geomID);
@@ -254,9 +242,9 @@ void Raytracer::get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2
 	rtcInterpolate0(geometry, ray_hit.hit.primID, ray_hit.hit.u, ray_hit.hit.v,	RTC_BUFFER_TYPE_VERTEX_ATTRIBUTE, 1, &tex_coord.u, 2);
 
 	material = static_cast<Material*>(rtcGetGeometryUserData(geometry));
-}
+}*/
 
-RTCRay Raytracer::generate_ray(Vector3& hit, Vector3& direction)
+RTCRay Raytracer::generate_ray(const Vector3& hit, const Vector3& direction)
 {
 	RTCRay ray;
 
@@ -275,106 +263,157 @@ RTCRay Raytracer::generate_ray(Vector3& hit, Vector3& direction)
 	return ray;
 }
 
-bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color, float& n1, int bump)
+RTCRayHit Raytracer::cast_ray(const Vector3& position, const Vector3& direction, const float& t)
 {
-
-	// intersect ray with the scene
+	RTCRayHit ray_hit = prepare_ray_hit(t, generate_ray(position, direction));
 	RTCIntersectContext context;
 	rtcInitIntersectContext(&context);
 	rtcIntersect1(scene_, &context, &ray_hit);
+	return ray_hit;
+}
 
-	if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+RTCRayHit Raytracer::cast_ray(const RTCRay& ray, const float& t)
+{
+	RTCRayHit ray_hit = prepare_ray_hit(t, ray);
+	RTCIntersectContext context;
+	rtcInitIntersectContext(&context);
+	rtcIntersect1(scene_, &context, &ray_hit);
+	return ray_hit;
+}
+
+RTCRayHitModel Raytracer::build_ray_model(const RTCRayHit& hit, const float& ior)
+{
+	return RTCRayHitModel(hit, &scene_, ior);
+}
+
+bool Raytracer::has_colision(const RTCRayHit& hit)
+{
+	return hit.hit.geomID != RTC_INVALID_GEOMETRY_ID;
+}
+
+RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump)
+{
+	RayCollision collision = Diffuse;
+	if (bump <= RAY_MAX_BUMPS)
 	{
-		Vector3 from(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z);
-		Vector3 hit = from + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-		Vector3 normalVec;
-		Coord2f tex_coord;
-		Material* material;
-		get_geometry_data(ray_hit, normalVec, tex_coord, material);
-		
-		if (bump < RAY_MAX_BUMPS)// && material->reflectivity > 0.f)
+		if (refl_ && refr_ && hit.material->alpha < 1.f)
 		{
-			bump++;
-
-			//Prepare next ray data
-			Vector3 dir(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-			Vector3 hitNormal(ray_hit.hit.Ng_x, ray_hit.hit.Ng_y, ray_hit.hit.Ng_z);
-			hitNormal.Normalize();
-
-			Vector3 resultReflected, resultRefracted;
-
-			Vector3 reflectedVec = (-dir).Reflect(normalVec);
-			reflectedVec.Normalize();
-
-			bool reflBaseColor = false;
-
-			auto start = begin();
-			if (refl_)
-			{
-				//Try reflected ray
-				if (!get_ray_color(*&prepare_ray_hit(t, generate_ray(hit, reflectedVec)), t, resultReflected, material->ior, bump))
-					resultReflected = cubeMap_->get_texel(reflectedVec);
-			}
+			hit.calc_fresnel();
+			if (hit.R == 0)
+				collision = Refraction;
+			else if (hit.R == 1)
+				collision = Reflection;
 			else
-			{
-				reflBaseColor = true;
-				resultReflected = get_material_color(normalVec, tex_coord, material, hit, from);
-			}
-			log(start, "reflection", bump-1);
+				collision = All;
+		}
+		else if (refl_)
+		{
+			hit.calc_fresnel();
+			collision = Reflection;
+		}
+		else if (refr_ && hit.material->alpha < 1.f)
+		{
+			hit.calc_fresnel();
+			collision = Refraction;
+		}
+	}
 
-			if (n1 <= 0.f)
-				n1 = IOR_AIR;
-			float R = 0.f, len = ray_hit.ray.tfar, n2 = n1 > IOR_AIR ? IOR_AIR : material->ior, n12 = n1 / n2;
+	if (rays_ && bump <= 1)
+		collision = RayMap;
 
-			start = begin();
-			if (refr_ && material->alpha < 1.f)
-			{
-				//Try refracted ray
-				float dirNormal = dir.DotProduct(normalVec);
-				auto a = powf(dirNormal, 2.0f),
-					b = sqrt(1.f - powf(n12, 2.f) * (1.f - a));
-				auto c = (n12 * dirNormal + b) * (normalVec);
-				Vector3 refractedVec = n12 * dir - c;
+	return collision;
+}
 
+int Raytracer::get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int bump)
+{
+	int count = 0;
+	if (has_colision(ray_hit))
+	{
+		auto data = build_ray_model(ray_hit, n1);
+		float distance = data.core.ray.tfar;
+		bump++;
+		switch (get_collision_type(data, bump))
+		{
+		case Diffuse:
+			count++;
+			break;
+
+		case RayMap:
+		case All:
+			// Refraction
+			count += get_ray_count(cast_ray(data.hit, data.refracted, t), t, data.n2, bump);
+
+			// Reflection
+			count += get_ray_count(cast_ray(data.hit, data.reflected, t), t, data.n1, bump);
+			break;
+
+		case Refraction:
+			count = get_ray_count(cast_ray(data.hit, data.refracted, t), t, data.n2, bump);
+			break;
+
+		case Reflection:
+			count = get_ray_count(cast_ray(data.hit, data.reflected, t), t, data.n1, bump);
+			break;
+		}
+		return true;
+	}
+
+	return false;
+}
+
+bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump)
+{
+	// intersected ray with the scene
+
+	if (has_colision(ray_hit))
+	{
+		auto data = build_ray_model(ray_hit, n1);
+		bump++;
+		float distance = data.core.ray.tfar;
+		switch (get_collision_type(data, bump))
+		{
+			case Diffuse:
+				color = get_material_color(data.normal, data.tex_coord, data.material, data.hit, data.from);
+				break;
+
+			case All:
 				// Refraction
-				float
-					R0 = powf((n1 - n2) / (n1 + n2), 2.f),
-					o = n1 <= n2 ? dir.DotProduct(normalVec) : refractedVec.DotProduct(normalVec);
-				R = max(R0 + (1.f - R0) * powf(1.f - cosf(o), 5.f), 0.01f);
-				/*float o1 = dir.DotProduct(normalVec), o2 = refractedVec.DotProduct(-normalVec),
-					n2o2 = n2 * cos(o2), n1o1 = n1 * cos(o1),
-					n2o1 = n2 * cos(o1), n1o2 = n1 * cos(o2),
-					Rs = powf((n2o2 - n1o1) / (n2o2 + n1o1), 2.f),
-					Rp = powf((n2o1 - n1o2) / (n2o1 + n1o2), 2.f);
-				R = (Rs + Rp) / 2.f;*/
+				if (!get_ray_color(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump))
+					data.colorRefracted = cubeMap_->get_texel(data.refracted);
+				else distance = 0;
 
-				if (!get_ray_color(*&prepare_ray_hit(t, generate_ray(hit, refractedVec)), t, resultRefracted, n2, bump))
-					resultRefracted = cubeMap_->get_texel(refractedVec);
-				else len = 0; 
+				// Reflection
+				if (!get_ray_color(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump))
+					data.colorReflected = cubeMap_->get_texel(data.reflected);
 
-				// Refraction + Reflection + Attenuation
-				color = (resultRefracted * (1.f - R) + resultReflected * R) * material->attenuation.Exp(-len);
-			}
-			else
-			{
-				// Reflection only
-				float
-					R0 = powf((n1 - n2) / (n1 + n2), 2.f),
-					o = dir.DotProduct(normalVec);
-				R = R0 + (1.f - R0) * powf(1.f - cosf(o), 5.f);
-				if (reflBaseColor)
-					color = resultReflected;
+				// Result
+				color = data.calc_result_color(distance);
+				break;
+
+			case Refraction:
+				if (!get_ray_color(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump))
+					data.colorRefracted = cubeMap_->get_texel(data.refracted);
+				else distance = 0;
+				data.colorReflected = { 0, 0, 0 };
+				color = data.calc_result_color(distance);
+				break;
+
+			case Reflection:
+				if(!get_ray_color(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump))
+					data.colorReflected = cubeMap_->get_texel(data.reflected);
+				if(data.R != 0)
+					data.colorRefracted = get_material_color(data.normal, data.tex_coord, data.material, data.hit, data.from);
 				else
-					color = get_material_color(normalVec, tex_coord, material, hit, from);
-				color += resultReflected * R;
-			}
-			log(start, "refraction", bump-1);
-		}
-		else
-		{
-			color = get_material_color(normalVec, tex_coord, material, hit, from);
-		}
+					data.colorRefracted = { 0, 0, 0 };
+				color = data.calc_result_color(-1);
+				break;
 
+			case RayMap:
+				float count = get_ray_count(ray_hit, t, n1, bump - 1) + 1;
+				count = count / (float)pow(RAY_MAX_BUMPS, refl_ ? refr_ ? 3 : 2 : refr_ ? 2 : 1);
+				color = Vector3(count, 0, 0);
+				break;
+		}
 		return true;
 	}
 
@@ -384,11 +423,11 @@ bool Raytracer::get_ray_color(RTCRayHit& ray_hit, const float& t, Vector3& color
 Vector3 Raytracer::get_pixel_internal(const int x, const int y, const int t)
 {
 	Vector3 color(0, 0, 0);
-	auto ray = camera_.GenerateRay(x, y);
+	auto ray = cast_ray(camera_.GenerateRay(x, y), t);
 	auto ior = IOR_AIR;
-	if (!get_ray_color(*&prepare_ray_hit(t, ray), t, color, ior, 0))
+	if (!get_ray_color(ray, t, color, ior, 0))
 		// Background
-		color = cubeMap_->get_texel(Vector3(ray.dir_x, ray.dir_y, ray.dir_z));
+		color = cubeMap_->get_texel(Vector3(ray.ray.dir_x, ray.ray.dir_y, ray.ray.dir_z));
 	return color;
 }
 
@@ -412,7 +451,7 @@ Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 			}
 		color /= (float)count;
 	}
-	color = SrgbTransform::linearToSrgb(color);
+	color = SrgbTransform::linearToSrgb(SrgbTransform::tonemap(color));
 
 	if (debug_)
 	{
@@ -420,13 +459,16 @@ Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 
 		if (x == 1)
 		{
-			auto max = 0.0f;
-			for (auto& x : times)
-				if (x.second > max)
-					max += x.second;
-			times_text.clear();
-			for (auto& x : times)
-				times_text.append(std::to_string((int)(x.second / max * 100.f)) + " %\t\t" + x.first + "\t\t\t" + std::to_string(x.second / 1000.0f) + " s\n");
+			#pragma omp critical
+			{
+				auto max = 0.0f;
+				for (auto& x : times)
+					if (x.second > max)
+						max += x.second;
+				times_text.clear();
+				for (auto& x : times)
+					times_text.append(std::to_string((int)(x.second / max * 100.f)) + " %\t\t" + x.first + "\t\t\t" + std::to_string(x.second / 1000.0f) + " s\n");
+			}
 		}
 	}
 
@@ -455,7 +497,8 @@ int Raytracer::Ui()
 	ImGui::Text("Surfaces = %d", surfaces_.size());
 	ImGui::Text("Materials = %d", materials_.size());
 	ImGui::Separator();
-	ImGui::Checkbox("Debug", &debug_);
+	//ImGui::Checkbox("Debug", &debug_);
+	ImGui::Checkbox("Ray map", &rays_);
 	ImGui::Checkbox("Save", &save_);
 	ImGui::Checkbox("Vsync", &vsync_ );
 	ImGui::Checkbox("Reflection", &refl_);
@@ -483,7 +526,7 @@ int Raytracer::Ui()
 		//counter++;
 	/*ImGui::SameLine();
 	ImGui::Text( "counter = %d", counter );*/
-	ImGui::Text("Functions:\n%s", times_text.c_str());
+	//ImGui::Text("Functions:\n%s", times_text.c_str());
 
 	ImGui::End();
 

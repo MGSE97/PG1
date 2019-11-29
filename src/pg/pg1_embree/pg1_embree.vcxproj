@@ -42,13 +42,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -148,6 +148,7 @@
       <ConformanceMode>true</ConformanceMode>
       <OpenMPSupport>true</OpenMPSupport>
       <AdditionalOptions>/Zc:twoPhase- %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -173,6 +174,7 @@
     <ClInclude Include="mymath.h" />
     <ClInclude Include="objloader.h" />
     <ClInclude Include="raytracer.h" />
+    <ClInclude Include="RTCRayHitModel.h" />
     <ClInclude Include="simpleguidx11.h" />
     <ClInclude Include="SrgbTransform.h" />
     <ClInclude Include="stdafx.h" />
@@ -200,6 +202,7 @@
     <ClCompile Include="objloader.cpp" />
     <ClCompile Include="raytracer.cpp" />
     <ClCompile Include="pg1_embree.cpp" />
+    <ClCompile Include="RTCRayHitModel.cpp" />
     <ClCompile Include="simpleguidx11.cpp" />
     <ClCompile Include="SrgbTransform.cpp" />
     <ClCompile Include="stdafx.cpp">
