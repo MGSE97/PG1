@@ -173,6 +173,7 @@
     <ClInclude Include="matrix3x3.h" />
     <ClInclude Include="mymath.h" />
     <ClInclude Include="objloader.h" />
+    <ClInclude Include="RayCollision.h" />
     <ClInclude Include="raytracer.h" />
     <ClInclude Include="RTCRayHitModel.h" />
     <ClInclude Include="simpleguidx11.h" />

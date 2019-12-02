@@ -144,10 +144,10 @@ int LoadMTL( const char * file_name, const char * path, std::vector<Material *> 
 				{
 					sscanf( tmp, "%*s %f %f %f", &material->emission.x, &material->emission.y, &material->emission.z );
 				}
-				if (strstr(tmp, "Tf") == tmp) // emission color of the material
-				{
-					sscanf(tmp, "%*s %f %f %f", &material->attenuation.x, &material->attenuation.y, &material->attenuation.z);
-				}
+				//if (strstr(tmp, "Tf") == tmp) // emission color of the material
+				//{
+				//	sscanf(tmp, "%*s %f %f %f", &material->attenuation.x, &material->attenuation.y, &material->attenuation.z);
+				//}
 				if ( strstr( tmp, "Ns" ) == tmp ) // specular coefficient
 				{
 					sscanf( tmp, "%*s %f", &material->shininess );
@@ -156,6 +156,14 @@ int LoadMTL( const char * file_name, const char * path, std::vector<Material *> 
 				{
 					sscanf(tmp, "%*s %f", &material->ior);
 				}
+				if (strstr(tmp, "illum") == tmp && material->shader < 1) // index of refraction
+				{
+					sscanf(tmp, "%*s %d", &material->shader);
+				}
+				if (strstr(tmp, "shader") == tmp) // index of refraction
+				{
+					sscanf(tmp, "%*s %d", &material->shader);
+				}
 				//if (strstr(tmp, "Tr") == tmp) // transparency
 				//{
 				//	sscanf(tmp, "%*s %f", &material->alpha);
@@ -163,13 +171,13 @@ int LoadMTL( const char * file_name, const char * path, std::vector<Material *> 
 				//		//material->ior = IOR_GLASS;
 				//		material->ior = IOR_PLASTIC;*/
 				//}
-				if (strstr(tmp, "d") == tmp) // transparency
-				{
-					sscanf(tmp, "%*s %f", &material->alpha);
-					/*if (material->ior <= 0.f)
-						//material->ior = IOR_GLASS;
-						material->ior = IOR_PLASTIC;*/
-				}
+				//if (strstr(tmp, "d") == tmp) // transparency
+				//{
+				//	sscanf(tmp, "%*s %f", &material->alpha);
+				//	/*if (material->ior <= 0.f)
+				//		//material->ior = IOR_GLASS;
+				//		material->ior = IOR_PLASTIC;*/
+				//}
 				if ( strstr( tmp, "map_Kd" ) == tmp ) // diffuse map
 				{					
 					sscanf( tmp, "%*s %s", image_file_name );

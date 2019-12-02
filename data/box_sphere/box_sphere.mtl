@@ -1,0 +1,27 @@
+# 3ds Max Wavefront OBJ Exporter v0.97b - (c)2007 guruware
+# File Created: 14.11.2017 12:42:58
+
+newmtl glass
+	Ns 32
+	Ni 1.5
+	d 1
+	Tr 0
+	Tf 1 1 1
+	illum 2
+	Ka 0.03 0.03 0.03
+	Kd 0.85 1.0 0.01
+	Ks 1.0. 1.0 1.0
+	shader 3
+
+
+newmtl chessboard
+	Ns 32
+	d 1
+	Tr 0
+	Tf 1 1 1
+	illum 2
+	Ka 0.03 0.03 0.03
+	Kd 0.95 0.95 0.95
+	Ks 1.0. 1.0 1.0
+  map_Kd chessboard.jpg
+	shader 5

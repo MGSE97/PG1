@@ -188,7 +188,7 @@ int tutorial_3( const std::string file_name, const char * config )
 	/*Raytracer raytracer(800, 600, deg2rad(45.0),
 		Vector3(175, -140, 130), Vector3(0, 0, 35), config);*/
 	Raytracer raytracer(1920/2, 1080/2, deg2rad(45.0),
-		Vector3(175, -140, 130), Vector3(0, 0, 35), config);
+		Vector3(175, -140, 130), Vector3(0, 0, 35), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, nullptr, config);
 	raytracer.LoadScene( file_name );
 	raytracer.MainLoop();
 
@@ -204,7 +204,43 @@ int tutorial_4(const std::string file_name, const char * config)
 	/*Raytracer raytracer(640, 480, deg2rad(45.0),
 		Vector3(2, -3, 0), Vector3(0, 0, 0), config);*/
 	Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(45.0),
-		Vector3(2, -3, 0), Vector3(0, 0, 0), config);
+		Vector3(2, -3, 0), Vector3(0, 0, 0), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, nullptr, config);
+	raytracer.LoadScene(file_name);
+	raytracer.MainLoop();
+
+	return EXIT_SUCCESS;
+}
+
+
+/* raytracer mainloop */
+int tutorial_5(const std::string file_name, const char* config)
+{
+	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 10,-15,10 }, &Vector3{ 1,1,1 }, &Vector3(0,0,0), config);
+	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 5,5,10 }, &Vector3{ 1,1,1 }, &Vector3(0, 0, 0), config);
+	Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 157,-157,105 }, &Vector3{ 1,1,1 }, &Vector3(0, 0, 0), config);
+	//Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3(0,0,0), config);
+	raytracer.LoadScene(file_name);
+	raytracer.MainLoop();
+
+	return EXIT_SUCCESS;
+}
+
+/* raytracer mainloop */
+int tutorial_6(const std::string file_name, const char* config)
+{
+	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3(0, 0, 0), config);
+	Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, &Vector3(0,0,0), config);
+	raytracer.LoadScene(file_name);
+	raytracer.MainLoop();
+
+	return EXIT_SUCCESS;
+}
+
+/* raytracer mainloop */
+int tutorial_7(const std::string file_name, const char* config)
+{
+	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(20, 0, 20), Vector3(0, 0, 0), &Vector3(0, 0, 0), config);
+	Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(40.0), Vector3(10, 0, 20), Vector3(0, 0, 0), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, &Vector3(0,0,0), config);
 	raytracer.LoadScene(file_name);
 	raytracer.MainLoop();
 

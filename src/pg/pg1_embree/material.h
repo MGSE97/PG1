@@ -110,12 +110,31 @@ public:
 
 	float reflectivity; /*!< Koeficient odrazivosti. */
 	float ior; /*!< Index lomu. */
-	float alpha; /* transparency */
+	
+	/*! 
+	Typ Shaderu:
+	0. Color on and Ambient off
+	1. Color on and Ambient on
+	2. Highlight on
+	3. Reflection on and Ray trace on
+	4. Transparency: Glass on, Reflection: Ray trace on
+	5. Reflection: Fresnel on and Ray trace on
+	6. Transparency: Refraction on, Reflection: Fresnel off and Ray trace on
+	7. Transparency: Refraction on, Reflection: Fresnel on and Ray trace on
+	8. Reflection on and Ray trace off
+	9. Transparency: Glass on, Reflection: Ray trace off
+	10. Casts shadows onto invisible surfaces
+	*/
+	int shader; 
 
 	static const char kDiffuseMapSlot; /*!< Èíslo slotu difuzní textury. */
 	static const char kSpecularMapSlot; /*!< Èíslo slotu spekulární textury. */
 	static const char kNormalMapSlot; /*!< Èíslo slotu normálové textury. */
 	static const char kOpacityMapSlot; /*!< Èíslo slotu transparentní textury. */
+
+	bool isMirror();
+	bool isReflective();
+	bool isTransparent();
 
 private:
 	Texture * textures_[NO_TEXTURES]; /*!< Pole ukazatelù na textury. */

@@ -1,0 +1,126 @@
+# Python generated
+
+newmtl Mat001
+	Ni 1.46
+	Ke 0.0 0.1 0.0
+	shader 4
+
+newmtl Mat002
+	Ni 1.46
+	Ke 0.3 0.1 0.0
+	shader 4
+
+newmtl Mat003
+	Ni 1.46
+	Ke 1.2 0.1 0.0
+	shader 4
+
+newmtl Mat004
+	Ni 1.46
+	Ke 2.6999999999999997 0.1 0.0
+	shader 4
+
+newmtl Mat005
+	Ni 1.46
+	Ke 4.8 0.1 0.0
+	shader 4
+
+newmtl Mat006
+	Ni 1.46
+	Ke 0.0 0.1 0.3
+	shader 4
+
+newmtl Mat007
+	Ni 1.46
+	Ke 0.3 0.1 0.3
+	shader 4
+
+newmtl Mat008
+	Ni 1.46
+	Ke 1.2 0.1 0.3
+	shader 4
+
+newmtl Mat009
+	Ni 1.46
+	Ke 2.6999999999999997 0.1 0.3
+	shader 4
+
+newmtl Mat010
+	Ni 1.46
+	Ke 4.8 0.1 0.3
+	shader 4
+
+newmtl Mat011
+	Ni 1.46
+	Ke 0.0 0.1 1.2
+	shader 4
+
+newmtl Mat012
+	Ni 1.46
+	Ke 0.3 0.1 1.2
+	shader 4
+
+newmtl Mat013
+	Ni 1.46
+	Ke 1.2 0.1 1.2
+	shader 4
+
+newmtl Mat014
+	Ni 1.46
+	Ke 2.6999999999999997 0.1 1.2
+	shader 4
+
+newmtl Mat015
+	Ni 1.46
+	Ke 4.8 0.1 1.2
+	shader 4
+
+newmtl Mat016
+	Ni 1.46
+	Ke 0.0 0.1 2.6999999999999997
+	shader 4
+
+newmtl Mat017
+	Ni 1.46
+	Ke 0.3 0.1 2.6999999999999997
+	shader 4
+
+newmtl Mat018
+	Ni 1.46
+	Ke 1.2 0.1 2.6999999999999997
+	shader 4
+
+newmtl Mat019
+	Ni 1.46
+	Ke 2.6999999999999997 0.1 2.6999999999999997
+	shader 4
+
+newmtl Mat020
+	Ni 1.46
+	Ke 4.8 0.1 2.6999999999999997
+	shader 4
+
+newmtl Mat021
+	Ni 1.46
+	Ke 0.0 0.1 4.8
+	shader 4
+
+newmtl Mat022
+	Ni 1.46
+	Ke 0.3 0.1 4.8
+	shader 4
+
+newmtl Mat023
+	Ni 1.46
+	Ke 1.2 0.1 4.8
+	shader 4
+
+newmtl Mat024
+	Ni 1.46
+	Ke 2.6999999999999997 0.1 4.8
+	shader 4
+
+newmtl Mat025
+	Ni 1.46
+	Ke 4.8 0.1 4.8
+	shader 4

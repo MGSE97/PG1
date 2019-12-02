@@ -19,7 +19,7 @@ Material::Material()
 	reflectivity = static_cast<float>( 0.1 );
 	shininess = 1;
 
-	alpha = 1.f;
+	shader = 5;
 	ior = IOR_PLASTIC;//-1;
 
 	memset( textures_, 0, sizeof( *textures_ ) * NO_TEXTURES );
@@ -80,4 +80,19 @@ void Material::set_texture( const int slot, Texture * texture )
 Texture * Material::get_texture( const int slot ) const
 {
 	return textures_[slot];
+}
+
+bool Material::isMirror()
+{
+	return shader == 3;
+}
+
+bool Material::isReflective()
+{
+	return shader > 2;
+}
+
+bool Material::isTransparent()
+{
+	return shader == 4 || shader == 6 || shader == 7 || shader == 9;
 }

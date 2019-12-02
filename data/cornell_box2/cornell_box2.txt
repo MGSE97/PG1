@@ -1,0 +1,14 @@
+cornell_box2.obj
+cornell_box2.mtl
+---
+Raytracer raytracer( 320, 240, deg2rad( 40.0 ), Vector3( 40, -940, 250 ), Vector3( 0, 0, 250 ) );
+---
+Lambert BRDF
+Uniform sampling on the hemisphere
+Max depth = 20 (no RR)
+Black background
+100.000 spp
+t_near = 0.01
+---
+cornell_box2.png
+Reference image in sRGB (gamma = 2.4)

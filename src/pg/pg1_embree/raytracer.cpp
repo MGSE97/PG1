@@ -30,21 +30,37 @@ void Raytracer::log(chrono::time_point<chrono::steady_clock>& begin, string pref
 }
 
 
-Raytracer::Raytracer( const int width, const int height,
+Raytracer::Raytracer(const int width, const int height,
 	const float fov_y, const Vector3 view_from, const Vector3 view_at,
+	Vector3* light, Vector3* lightPower,
+	const Vector3* background,
 	const char * config ) : SimpleGuiDX11( width, height )
 {
 	InitDeviceAndScene( config );
 
 	camera_ = Camera( width, height, fov_y, view_from, view_at );
 	
-	cubeMap_ = new CubeMap("../../../data/sky185/sky185rt.png",
-		"../../../data/sky185/sky185lf.png", "../../../data/sky185/sky185bk.png",
-		"../../../data/sky185/sky185ft.png", "../../../data/sky185/sky185up.png",
-		"../../../data/sky185/sky185dn.png");
+	if (background == nullptr)
+	{
+		cubeMap_ = new CubeMap("../../../data/sky185/sky185rt.png",
+			"../../../data/sky185/sky185lf.png", "../../../data/sky185/sky185bk.png",
+			"../../../data/sky185/sky185ft.png", "../../../data/sky185/sky185up.png",
+			"../../../data/sky185/sky185dn.png");
+	}
+	else
+		cubeMap_ = new CubeMap("../../../data/sky185/sky185rt.png",
+			"../../../data/sky185/sky185lf.png", "../../../data/sky185/sky185bk.png",
+			"../../../data/sky185/sky185ft.png", "../../../data/sky185/sky185up.png",
+			"../../../data/sky185/sky185dn.png", *background);
+
+	light_ = *light;
+	lightPower_ = *lightPower;
+
+	ss_e2_ = std::mt19937(rd_());
+	ss_dist_ = std::uniform_real_distribution<>(-SS_D, SS_D);
 
 	e2_ = std::mt19937(rd_());
-	dist_ = std::uniform_real_distribution<>(-0.5f, 0.5f);
+	dist_ = std::uniform_real_distribution<>(-1.f, 1.f);
 
 	times["get_pixel"] = 0;
 	for (int i = 0; i < 11; i++)
@@ -72,9 +88,9 @@ int Raytracer::InitDeviceAndScene( const char * config )
 
 	//rtcSetSceneFlags(scene_, RTC_SCENE_FLAG_ROBUST);
 
-	light_ = Vector3{ 200,300,400 };
-	light_.Normalize();
-	lightPower_ = Vector3{ 1.0f, 1.0f, 1.0f };
+	//light_ = Vector3{ 200,300,400 };
+	//light_.Normalize();
+	//lightPower_ = Vector3{ 1.0f, 1.0f, 1.0f };
 
 	return S_OK;
 }
@@ -174,91 +190,267 @@ RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray, const float& tne
 	return ray_hit;
 }
 
-Vector3 Raytracer::get_material_color(Vector3 &normalVec, Coord2f &tex_coord, Material* material, Vector3 &hit, Vector3 &origin)
+Vector3 Raytracer::get_material_color(RTCRayHitModel& hit, const float& t)
+{
+	if (brdf_)
+		// (direct + indirect) * albedo / PI
+		//return (get_material_phong_color(hit, t) + get_material_brdf_color(hit, t)) / PI;
+		return (get_material_phong_color(hit, t) / PI + 2*get_material_brdf_color(hit, t));
+		//return get_material_phong_color(hit, t) * get_material_brdf_color(hit, t);
+		//return get_material_phong_color(hit, t)*(1.f - hit.R) +get_material_brdf_color(hit, t) * hit.R;
+	else
+		return get_material_phong_color(hit, t);
+}
+
+Vector3 Raytracer::get_material_emission_color(RTCRayHitModel& hit, const float& t)
+{
+	Vector3 color = Vector3{ 0,0,0};
+	if (hit.material != nullptr)
+	{
+		if (hit.material->emission.data[hit.material->emission.LargestComponent(true)] > 0)
+			color = hit.material->ambient + hit.material->diffuse * hit.material->emission;
+		else
+			color = lightPower_.x * hit.material->ambient;
+	}
+	return color;
+}
+
+Vector3 Raytracer::get_material_phong_color(RTCRayHitModel& hit, const float& t)
 {
 	Vector3 color = Vector3{ 0.5,0.2,0.55 };
-	if(material != nullptr)
+	if(hit.material != nullptr)
 	{
-		// Check Shadow
-		bool shadow = false;
-		auto ray = cast_ray(hit, light_, 0);
-		if (has_colision(ray))
-		{
-			auto data = build_ray_model(ray, material->ior);
-			while (!has_colision(data))
-			{
-				ray = cast_ray(hit, light_, 0, data.core.ray.tfar + 0.1f);
-				if (has_colision(ray))
-					data = build_ray_model(ray, material->ior);
-				else
-					break;
-			}
+		Vector3 lightVec = light_;
+		lightVec.Normalize();
 
-			if (has_colision(data))
-				shadow = true;
+		// Check Shadow
+		bool shadow = hit.normal.DotProduct(lightVec) < 0;
+		if (shadows_)
+		{
+			auto ray = cast_ray(hit.hit, light_, t);
+			if (has_colision(ray))
+			{
+				auto data = build_ray_model(ray, hit.material->ior);
+				while (!has_colision(data))
+				{
+					ray = cast_ray(hit.hit, light_, t, data.core.ray.tfar + 0.1f);
+					if (has_colision(ray))
+						data = build_ray_model(ray, hit.material->ior);
+					else
+						break;
+				}
+
+				if (has_colision(data))
+					shadow = true;
+			}
 		}
 		
-		if(shadow)
-			color = lightPower_.x * material->ambient;
+		if (shadow)
+		{
+
+			/*if (hit.material->emission.data[hit.material->emission.LargestComponent(true)] > 0)
+				color = hit.material->ambient + hit.material->diffuse * hit.material->emission;
+			else*/
+				color = lightPower_.x * hit.material->ambient;
+		}
 		else
 		{
-			// Get Difuse
-			color = material->diffuse;
-			Texture* difuse = material->get_texture(material->kDiffuseMapSlot);
-			if (difuse != nullptr)
-			{
-				Color3f texlet = difuse->get_texel(tex_coord.u, 1.0f - tex_coord.v);
-				color.x = texlet.r;
-				color.y = texlet.g;
-				color.z = texlet.b;
-				//color.Normalize();
-			}
-
-			//return color;
 
 			// Compute lighting
-			Vector3 reflectedVec = light_.Reflect(normalVec);//2 * (light_.CrossProduct(normalVec))*normalVec - light_;
+			Vector3 reflectedVec = lightVec.Reflect(hit.normal);//2 * (light_.CrossProduct(normalVec))*normalVec - light_;
 			reflectedVec.Normalize();
-			Vector3 cam = origin;
+			Vector3 cam = hit.from;
 			cam.Normalize();
 
-			Vector3 specular = material->specular;
-			/*Texture* specularmap = material->get_texture(material->kSpecularMapSlot);
-			if (specularmap != nullptr)
+			if (light_map_)
 			{
-				Color3f texlet = specularmap->get_texel(tex_coord.u, 1.0f - tex_coord.v);
-				specular.x *= texlet.r;
-				specular.y *= texlet.g;
-				specular.z *= texlet.b;
-				specular.Normalize();
-			}*/
+				// Calculate Phong
+				color = lightPower_.x * hit.material->ambient +
+					lightPower_.y * 1.f * max(cos(hit.normal.DotProduct(lightVec)), 0.f) +
+					lightPower_.z * 1.f * powf(max(cos(reflectedVec.DotProduct(cam)), 0.f), hit.material->shininess);
+			}
+			else
+			{
+				// Get Difuse
+				color = hit.material->diffuse;
+				Texture* difuse = hit.material->get_texture(hit.material->kDiffuseMapSlot);
+				if (difuse != nullptr)
+				{
+					Color3f texlet = difuse->get_texel(hit.tex_coord.u, 1.0f - hit.tex_coord.v);
+					color.x = texlet.r;
+					color.y = texlet.g;
+					color.z = texlet.b;
+					//color.Normalize();
+				}
 
-			// Rotate normal of black transparent sides
-			color = lightPower_.x * material->ambient +
-				lightPower_.y * color * max(normalVec.DotProduct(light_), .0f) +
-				lightPower_.z * specular * powf(max(reflectedVec.DotProduct(cam), .0f), material->shininess);
+				Vector3 specular = hit.material->specular;
+
+				// Calculate Phong
+				auto power = lightPower_;
+				/*if (hit.material->emission.data[hit.material->emission.LargestComponent(true)] > 0)
+					power = hit.material->emission;*/
+				color = power.x * hit.material->ambient +
+					power.y * color * max(hit.normal.DotProduct(lightVec), 0.f) +
+					power.z * specular * powf(max(reflectedVec.DotProduct(cam), 0.f), hit.material->shininess);
+			}
 		}
 	}
 
 	return SrgbTransform::srgbToLinear(color);
 }
 
-/*void Raytracer::get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material)
+Vector3 Raytracer::get_material_brdf_mirror_color(RTCRayHitModel& hit, const float& t)
 {
-	// we hit something
-	RTCGeometry geometry = rtcGetGeometry(scene_, ray_hit.hit.geomID);
-	Normal3f normal;
-		
-	// get interpolated normal
-	rtcInterpolate0(geometry, ray_hit.hit.primID, ray_hit.hit.u, ray_hit.hit.v,	RTC_BUFFER_TYPE_VERTEX_ATTRIBUTE, 0, &normal.x, 3);
-	normalVec = { normal.x, normal.y, normal.z };
-	if (normalVec.DotProduct(Vector3(ray_hit.ray.org_x, ray_hit.ray.org_y, ray_hit.ray.org_z)) < 0)
-		normalVec = { -normal.x, -normal.y, -normal.z };
+	auto light = light_;
+	light.Normalize();
+	return (((-hit.dir).DotProduct(hit.normal) == light.DotProduct(hit.normal) ? Vector3{1, 1, 1} : Vector3{0, 0, 0})) * hit.material->diffuse;
+}
 
-	rtcInterpolate0(geometry, ray_hit.hit.primID, ray_hit.hit.u, ray_hit.hit.v,	RTC_BUFFER_TYPE_VERTEX_ATTRIBUTE, 1, &tex_coord.u, 2);
+Vector3 Raytracer::get_material_brdf_phong_color(RTCRayHitModel& hit, const float& t)
+{
+	Vector3 color = Vector3{ 0.5,0.2,0.55 };
+	if (hit.material != nullptr)
+	{
+		Vector3 lightVec = light_;
+		lightVec.Normalize();
 
-	material = static_cast<Material*>(rtcGetGeometryUserData(geometry));
-}*/
+		// Check Shadow
+		bool shadow = hit.normal.DotProduct(lightVec) < 0;
+		if (shadows_)
+		{
+			auto ray = cast_ray(hit.hit, light_, t);
+			if (has_colision(ray))
+			{
+				auto data = build_ray_model(ray, hit.material->ior);
+				while (!has_colision(data))
+				{
+					ray = cast_ray(hit.hit, light_, t, data.core.ray.tfar + 0.1f);
+					if (has_colision(ray))
+						data = build_ray_model(ray, hit.material->ior);
+					else
+						break;
+				}
+
+				if (has_colision(data))
+					shadow = true;
+			}
+		}
+
+		if (shadow)
+		{
+			if (hit.material->emission.data[hit.material->emission.LargestComponent(true)] > 0)
+				color = hit.material->diffuse * hit.material->emission;
+			else
+				color = { 0, 0, 0 };
+		}
+		else
+		{
+			// Compute lighting
+			Vector3 lightVec = light_;
+			lightVec.Normalize();
+			Vector3 reflectedVec = lightVec.Reflect(hit.normal);//2 * (light_.CrossProduct(normalVec))*normalVec - light_;
+			reflectedVec.Normalize();
+			Vector3 cam = hit.from;
+			cam.Normalize();
+
+			if (light_map_)
+			{
+				color = {1,1,1};
+				color =
+					hit.material->emission + 
+					(lightPower_.y * color * max(hit.normal.DotProduct(lightVec), .0f)) / PI +
+					((lightPower_.z * color * powf(max(reflectedVec.DotProduct(cam), .0f), hit.material->shininess)) * (hit.material->shininess + 2.f)) / (2.f * PI) *
+					(powf(cos(reflectedVec.DotProduct(hit.normal)), hit.material->shininess) / cos(hit.dir.DotProduct(hit.normal)));
+			}
+			else
+			{
+				// Get Difuse
+				color = hit.material->diffuse;
+				Texture* difuse = hit.material->get_texture(hit.material->kDiffuseMapSlot);
+				if (difuse != nullptr)
+				{
+					Color3f texlet = difuse->get_texel(hit.tex_coord.u, 1.0f - hit.tex_coord.v);
+					color.x = texlet.r;
+					color.y = texlet.g;
+					color.z = texlet.b;
+					//color.Normalize();
+				}
+
+				Vector3 specular = hit.material->specular;
+
+				//auto power = lightPower_; //get_material_brdf_mirror_color(hit, t);
+				// Calculate Phong
+				/*color = 
+					(color * max(hit.normal.DotProduct(lightVec), .0f)) / PI +
+					((specular * powf(max(reflectedVec.DotProduct(cam), .0f), hit.material->shininess)) * (hit.material->shininess + 2.f)) / (2.f * PI) *
+					(powf(reflectedVec.DotProduct(hit.normal), hit.material->shininess) / hit.dir.DotProduct(hit.normal));*/
+				color = 
+					lightPower_.y * color * max(hit.normal.DotProduct(lightVec), 0.f) +
+					lightPower_.z * specular * powf(max(reflectedVec.DotProduct(cam), 0.f), hit.material->shininess);
+				if (hit.material->emission.data[hit.material->emission.LargestComponent(true)] > 0)
+					color = color * hit.material->emission;
+			}
+		}
+	}
+
+	return SrgbTransform::srgbToLinear(color);
+}
+
+Vector3 Raytracer::get_material_brdf_ray_color(RTCRayHit& ray, const float& t, const float& ior, int bump)
+{
+	if (!has_colision(ray))
+		return cubeMap_->get_texel(Vector3(ray.ray.dir_x, ray.ray.dir_y, ray.ray.dir_z));
+
+	auto model = build_ray_model(ray, ior);
+	/*bump++;
+	if (bump <= RAY_MAX_BUMPS)
+		return get_material_brdf_color(model, t, bump);
+	else*/
+		return get_material_brdf_phong_color(model, t);
+}
+
+Vector3 Raytracer::get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump)
+{
+	if (bump == RAY_MAX_BUMPS)
+		return Vector3{ 0,0,0 };
+	// Sample half sphere
+	int ax_splits = floor(powf(pow(10, BRDF_SAMPLES_EXP), 1.f / 2.f));
+	float ax_i = 1.f / (float)ax_splits, pdf = 1 / (2*PI);
+	Vector3 color(0, 0, 0);
+	for(float u = 0.f; u <= 1.f; u+=ax_i)
+		for (float v = 0.f; v <= 1.f; v+=ax_i)
+		{
+			//float theta = 2*PI * u;
+			//float phi = acos(2*v - 1.f);
+			/*float theta = PI * u;
+			float phi = 2 * v * PI - PI;//acos(2*v - 1.f);
+			float x = sin(theta) * cos(phi);
+			float y = sin(theta) * sin(phi);
+			float z = cos(theta);*/
+			float sinTheta = sqrtf(1 - u * u);
+			float phi = 2 * M_PI * v;
+			float x = sinTheta * cosf(phi);
+			float z = sinTheta * sinf(phi);
+			auto dir = hit.hit + Vector3(x, u, z);
+			/*if (dir.DotProduct(hit.normal) < 0)
+				continue;*/
+
+			//color += get_material_phong_color(hit, t);// * (hit.material->emission + get_material_brdf_mirror_color(hit, t));
+			auto ray = cast_ray(hit.hit, dir, t);
+			Vector3 result{ 0,0,0 };
+			if (!get_ray_color(ray, t, result, hit.n1, bump, &Raytracer::get_material_emission_color))
+			//if (!get_ray_color(ray, t, result, hit.n1, -1, &Raytracer::get_material_brdf_phong_color))
+				result = cubeMap_->get_texel(Vector3(ray.ray.dir_x, ray.ray.dir_y, ray.ray.dir_z));
+				//result = { 1,1,1 };
+				//result = { 0,0,0 };
+			//get_ray_color(ray, t, result, hit.n1, bump, &Raytracer::get_material_brdf_phong_color);
+			color += result * u / pdf;
+		}
+	return color / pow(ax_splits, 2);
+
+	/*auto ray = cast_ray(hit.hit, hit.hit + hit.normal, t);
+	return get_material_brdf_ray_color(ray, t, hit.material->ior);*/
+}
 
 RTCRay Raytracer::generate_ray(const Vector3& hit, const Vector3& direction)
 {
@@ -309,7 +501,7 @@ bool Raytracer::has_colision(const RTCRayHit& hit)
 
 bool Raytracer::has_colision(const RTCRayHitModel& hit)
 {
-	return hit.material->alpha >= 1.f;
+	return hit.material->shader != 4;
 }
 
 RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump)
@@ -317,7 +509,10 @@ RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump)
 	RayCollision collision = Diffuse;
 	if (bump <= RAY_MAX_BUMPS)
 	{
-		if (refl_ && refr_ && hit.material->alpha < 1.f)
+		if (refl_ 
+			&& refr_
+			&& hit.material->isReflective()
+			&& hit.material->isTransparent())
 		{
 			hit.calc_fresnel();
 			if (hit.R == 0)
@@ -327,19 +522,23 @@ RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump)
 			else
 				collision = All;
 		}
-		else if (refl_)
+		else if (refl_ && hit.material->isReflective())
 		{
 			hit.calc_fresnel();
 			collision = Reflection;
 		}
-		else if (refr_ && hit.material->alpha < 1.f)
+		else if (refr_ && hit.material->isTransparent())
 		{
 			hit.calc_fresnel();
 			collision = Refraction;
 		}
+		/*else if (brdf_)
+			hit.calc_fresnel();*/
 	}
+	/*else if(brdf_)
+		hit.calc_fresnel();*/
 
-	if (rays_ && bump == RAY_MAP_BUMP)
+	if (ray_map_ && bump == RAY_MAP_BUMP)
 		collision = RayMap;
 
 	return collision;
@@ -379,7 +578,7 @@ int Raytracer::get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int b
 	return count;
 }
 
-bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump)
+bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump, Vector3 (Raytracer::*sample_func)(RTCRayHitModel&, const float&))
 {
 	// intersected ray with the scene
 
@@ -391,17 +590,17 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color,
 		switch (get_collision_type(data, bump))
 		{
 			case Diffuse:
-				color = get_material_color(data.normal, data.tex_coord, data.material, data.hit, data.from);
+				color = (*this.*sample_func)(data, t);
 				break;
 
 			case All:
 				// Refraction
-				if (!get_ray_color(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump))
+				if (!get_ray_color(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump, sample_func))
 					data.colorRefracted = cubeMap_->get_texel(data.refracted);
 				else distance = 0;
 
 				// Reflection
-				if (!get_ray_color(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump))
+				if (!get_ray_color(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump, sample_func))
 					data.colorReflected = cubeMap_->get_texel(data.reflected);
 
 				// Result
@@ -409,7 +608,7 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color,
 				break;
 
 			case Refraction:
-				if (!get_ray_color(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump))
+				if (!get_ray_color(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump, sample_func))
 					data.colorRefracted = cubeMap_->get_texel(data.refracted);
 				else distance = 0;
 				data.colorReflected = { 0, 0, 0 };
@@ -417,10 +616,10 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color,
 				break;
 
 			case Reflection:
-				if(!get_ray_color(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump))
+				if(!get_ray_color(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump, sample_func))
 					data.colorReflected = cubeMap_->get_texel(data.reflected);
 				if(data.R != 0)
-					data.colorRefracted = get_material_color(data.normal, data.tex_coord, data.material, data.hit, data.from);
+					data.colorRefracted = (*this.*sample_func)(data, t);
 				else
 					data.colorRefracted = { 0, 0, 0 };
 				color = data.calc_result_color(-1);
@@ -444,7 +643,7 @@ Vector3 Raytracer::get_pixel_internal(const int x, const int y, const int t)
 	Vector3 color(0, 0, 0);
 	auto ray = cast_ray(camera_.GenerateRay(x, y), t);
 	auto ior = IOR_AIR;
-	if (!get_ray_color(ray, t, color, ior, 0))
+	if (!get_ray_color(ray, t, color, ior, 0, &Raytracer::get_material_color))
 		// Background
 		color = cubeMap_->get_texel(Vector3(ray.ray.dir_x, ray.ray.dir_y, ray.ray.dir_z));
 	return color;
@@ -463,8 +662,9 @@ Color4f Raytracer::get_pixel( const int x, const int y, const float t )
 		for (int i = -ss_; i <= ss_; i++)
 			for (int j = -ss_; j <= ss_; j++)
 			{
-				//const float dx = get_random_float(), dy = get_random_float();
-				const float dx = i * 0.25f, dy = j * 0.25f;
+				const float nx = get_random_ss_float(), ny = get_random_ss_float();
+				const float dx = i * (SS_MD/ss_) + nx/ss_, dy = j * (SS_MD/ss_) + (ny/ss_);
+				//const float dx = i * 0.25f, dy = j * 0.25f;
 				color += get_pixel_internal(x + dx, y + dy, t);
 				count++;
 			}
@@ -499,6 +699,11 @@ float Raytracer::get_random_float()
 	return dist_(e2_);
 }
 
+float Raytracer::get_random_ss_float()
+{
+	return ss_dist_(ss_e2_);
+}
+
 int Raytracer::Ui()
 {
 	//static float f = 0.0f;
@@ -516,28 +721,50 @@ int Raytracer::Ui()
 	ImGui::Text("Surfaces = %d", surfaces_.size());
 	ImGui::Text("Materials = %d", materials_.size());
 	ImGui::Separator();
-	//ImGui::Checkbox("Debug", &debug_);
-	ImGui::Checkbox("Ray map", &rays_);
+	ImGui::Checkbox("Vsync", &vsync_);
 	ImGui::Checkbox("Save", &save_);
-	ImGui::Checkbox("Vsync", &vsync_ );
+	ImGui::Separator();
+	//ImGui::Checkbox("Debug", &debug_);
+	ImGui::Checkbox("Cubemap texture", &cubeMap_->returnTexture);
+	ImGui::Checkbox("Light map", &light_map_);
+	ImGui::Checkbox("Ray map", &ray_map_);
+	ImGui::Checkbox("Shadows", &shadows_);
 	ImGui::Checkbox("Reflection", &refl_);
 	ImGui::Checkbox("Refraction", &refr_);
+	ImGui::Separator();
+	ImGui::Checkbox("BRDF", &brdf_);
+	ImGui::Separator();
 	
 	//ImGui::Checkbox( "Demo Window", &show_demo_window ); // Edit bools storing our window open/close state
 	//ImGui::Checkbox( "Another Window", &show_another_window );
-	
+	if(ray_map_)
+		ImGui::SliderInt("Ray map depth", &RAY_MAP_BUMP, 0, RAY_MAX_BUMPS);
+	if (light_map_)
+		ImGui::SliderInt("Light map depth", &LIGHT_MAP_BUMP, 0, RAY_MAX_BUMPS);
+	ImGui::SliderInt("Ray depth", &RAY_MAX_BUMPS, 0, 20);
+	ImGui::SliderInt("BRDF Samples", &BRDF_SAMPLES_EXP, 0, 10);
 	ImGui::SliderInt("Super Sampling", &ss_, 0, 9); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderFloat("Lx", &light_.x, -1.0f, 1.0f ); // Edit 1 float using a slider from 0.0f to 1.0f    
-	ImGui::SliderFloat("Ly", &light_.y, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderFloat("Lz", &light_.z, -1.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderFloat("Cx", &camera_.view_from_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
-	ImGui::SliderFloat("Cy", &camera_.view_from_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderFloat("Cz", &camera_.view_from_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderFloat("Tx", &camera_.view_at_.x, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
-	ImGui::SliderFloat("Ty", &camera_.view_at_.y, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderFloat("Tz", &camera_.view_at_.z, -400.0f, 400.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
-	ImGui::SliderInt("Ray map depth", &RAY_MAP_BUMP, 0, 10);
-	ImGui::SliderInt("Bumps", &RAY_MAX_BUMPS, 0, 10);
+	ImGui::Separator();
+	if (!cubeMap_->returnTexture)
+	{
+		ImGui::SliderFloat("Cubemap R", &cubeMap_->color.x, 0.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
+		ImGui::SliderFloat("Cubemap G", &cubeMap_->color.y, 0.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
+		ImGui::SliderFloat("Cubemap B", &cubeMap_->color.z, 0.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
+		ImGui::Separator();
+	}
+	ImGui::SliderFloat("Light X", &light_.x, -1000.0f, 1000.0f ); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat("Light Y", &light_.y, -1000.0f, 1000.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Light Z", &light_.z, -1000.0f, 1000.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Light Power R", &lightPower_.x, 0.f, 1.f); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat("Light Power G", &lightPower_.y, 0.f, 1.f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Light Power B", &lightPower_.z, 0.f, 1.f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::Separator();
+	ImGui::SliderFloat("Camera X", &camera_.view_from_.x, -1000.0f, 1000.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat("Camera Y", &camera_.view_from_.y, -1000.0f, 1000.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Camera Z", &camera_.view_from_.z, -1000.0f, 1000.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Target X", &camera_.view_at_.x, -1000.0f, 1000.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
+	ImGui::SliderFloat("Target Y", &camera_.view_at_.y, -1000.0f, 1000.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
+	ImGui::SliderFloat("Target Z", &camera_.view_at_.z, -1000.0f, 1000.0f); // Edit 1 float using a slider from 0.0f to 1.0f   
 	//ImGui::ColorEdit3( "clear color", ( float* )&clear_color ); // Edit 3 floats representing a color
 
 	// Buttons return true when clicked (most widgets return true when edited/activated)

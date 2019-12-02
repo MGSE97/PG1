@@ -4,7 +4,7 @@
 newmtl black_plastic
 	Ns 32
 	d 1
-	Tr 1
+	Tr 0
 	Tf 1 1 1
 	illum 2
 	Ka 0.03 0.03 0.03
@@ -13,18 +13,20 @@ newmtl black_plastic
         
 newmtl green_plastic_transparent
 	Ns 32
-	d 0.5
+	d 1
 	Tr 0
-	Tf 1 0.1 1
+	Tf 1 1 1
 	illum 2
 	Ka 0.03 0.03 0.03
 	Kd 0.01 0.9 0.01
 	Ks 1.0. 1.0 1.0
+	Ke 0.4 0.001 0.4
+	shader 7
 
 newmtl white_plastic
 	Ns 32
 	d 1
-	Tr 1
+	Tr 0
 	Tf 1 1 1
 	illum 2
 	Ka 0.03 0.03 0.03
@@ -34,7 +36,7 @@ newmtl white_plastic
 newmtl white_plastic_4150p04
 	Ns 32
 	d 1
-	Tr 1
+	Tr 0
 	Tf 1 1 1
 	illum 2
 	Ka 0.03 0.03 0.03
@@ -45,7 +47,7 @@ newmtl white_plastic_4150p04
 newmtl white_plastic_3069bp13
 	Ns 32
 	d 1
-	Tr 1
+	Tr 0
 	Tf 1 1 1
 	illum 2
 	Ka 0.03 0.03 0.03

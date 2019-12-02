@@ -52,29 +52,34 @@ void RTCRayHitModel::calc_fresnel()
 {
 	calc_reflection();
 	calc_refraction();
-
-	float
-		o = n1 <= n2 ? dir.DotProduct(normal) : refracted.DotProduct(-normal),
-		cosi = cosf(o),
-		sini = 1.f - cosi;
-	// Total internal reflection
-	if (sini >= 1) {
+	if (material->isMirror())
 		R = 1;
-	}
-	else {
-		// Compute fresnel
+	else
+	{
+
 		float
-			n12 = (n1 - n2) / (n1 + n2),
-			R0 = n12 * n12;
-		R = max(R0 + (1.f - R0) * sini * sini * sini * sini * sini, 0);
-		
-		/*float o1 = dir.DotProduct(normal), o2 = refracted.DotProduct(-normal),
-			co1 = cos(o1), co2 = cos(o2),
-			n2o2 = n2 * co2, n1o1 = n1 * co1,
-			n2o1 = n2 * co1, n1o2 = n1 * co2,
-			Rs = (n2o2 - n1o1) / (n2o2 + n1o1),
-			Rp = (n2o1 - n1o2) / (n2o1 + n1o2);
-		R = (Rs*Rs + Rp*Rp) / 2.f;*/
+			o = n1 <= n2 ? dir.DotProduct(normal) : refracted.DotProduct(-normal),
+			cosi = cosf(o),
+			sini = 1.f - cosi;
+		// Total internal reflection
+		if (sini >= 1) {
+			R = 1;
+		}
+		else {
+			// Compute fresnel
+			float
+				n12 = (n1 - n2) / (n1 + n2),
+				R0 = n12 * n12;
+			R = max(R0 + (1.f - R0) * sini * sini * sini * sini * sini, 0);
+
+			/*float o1 = dir.DotProduct(normal), o2 = refracted.DotProduct(-normal),
+				co1 = cos(o1), co2 = cos(o2),
+				n2o2 = n2 * co2, n1o1 = n1 * co1,
+				n2o1 = n2 * co1, n1o2 = n1 * co2,
+				Rs = (n2o2 - n1o1) / (n2o2 + n1o1),
+				Rp = (n2o1 - n1o2) / (n2o1 + n1o2);
+			R = (Rs*Rs + Rp*Rp) / 2.f;*/
+		}
 	}
 }
 
@@ -82,6 +87,7 @@ Vector3 RTCRayHitModel::calc_result_color(const float& distance)
 {
 	Vector3 color = (colorRefracted * (1.f - R) + colorReflected * R);
 	if(distance >= 0)
-		color = color * material->attenuation.Exp(-distance);
+		color = color * material->emission.Exp(-distance);
+		//color = color * material->attenuation.Exp(-distance);
 	return color;
 }

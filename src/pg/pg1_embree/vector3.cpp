@@ -110,9 +110,19 @@ Vector3 operator-( const Vector3 & v )
 	return Vector3( -v.x, -v.y, -v.z );
 }
 
+Vector3 operator+(const Vector3& u, const float& v)
+{
+	return Vector3(u.x + v, u.y + v, u.z + v);
+}
+
 Vector3 operator+( const Vector3 & u, const Vector3 & v )
 {
 	return Vector3( u.x + v.x, u.y + v.y, u.z + v.z );
+}
+
+Vector3 operator-(const Vector3& u, const float& v)
+{
+	return Vector3(u.x - v, u.y - v, u.z - v);
 }
 
 Vector3 operator-( const Vector3 & u, const Vector3 & v )
