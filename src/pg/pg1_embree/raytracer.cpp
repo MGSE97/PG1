@@ -363,14 +363,15 @@ Matrix3x3 createCoordinateSystem(const Vector3& N)
 Vector3 Raytracer::get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump)
 {
 	if (bump > 0)
-		return get_material_shader_color(hit, t);
+		return hit.material->diffuse + hit.material->emission;
+		//return get_material_shader_color(hit, t);
 	bump++;
 
 	// Sample half sphere
 	int samples = pow(10, BRDF_SAMPLES_EXP);
 	float pdf = 1 / (2 * PI);
 	Vector3 color(0, 0, 0);
-	Matrix3x3 world = createCoordinateSystem(hit.normal);
+	Matrix3x3 world = createCoordinateSystem(hit.normal.DotProduct(-hit.dir) < 0 ? -hit.normal : hit.normal);
 	for (int i = 0; i < samples; i++)
 	{
 		float ru = get_random_float(),
@@ -394,7 +395,8 @@ Vector3 Raytracer::get_material_brdf_color(RTCRayHitModel& hit, const float& t, 
 		color += result;// *ru / pdf;
 	}
 	color /= (float)samples;
-	return (get_material_shader_color(hit, t) + hit.material->diffuse*color) / PI;
+	return ((hit.material->diffuse + hit.material->emission) * color) / PI;
+	return (get_material_shader_color(hit, t) + color) / PI;
 
 
 	//// Sample half sphere
