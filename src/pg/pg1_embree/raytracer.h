@@ -13,6 +13,7 @@
 \version 0.1
 \date 2018
 */
+
 class Raytracer : public SimpleGuiDX11
 {
 public:
@@ -28,16 +29,24 @@ public:
 	int ReleaseDeviceAndScene();
 
 	void LoadScene( const std::string file_name );
-	Vector3 get_material_color(RTCRayHitModel& hit, const float& t);
-	Vector3 get_material_emission_color(RTCRayHitModel& hit, const float& t);
-	Vector3 get_material_phong_color(RTCRayHitModel& hit, const float& t);
-	Vector3 get_material_brdf_mirror_color(RTCRayHitModel& hit, const float& t);
-	Vector3 get_material_brdf_phong_color(RTCRayHitModel& hit, const float& t);
-	Vector3 get_material_brdf_ray_color(RTCRayHit& ray, const float& t, const float& ior, int bump = 0);
+	Vector3 get_material_color(RTCRayHitModel& hit, const float& t, int bump = 0);
+	bool check_shadow(RTCRayHitModel& hit, const float& t, const Vector3& lightVector);
+	Vector3 get_material_diffuse_color(RTCRayHitModel& hit);
+
+	// Shaders
+	Vector3 shader_normal(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_lambert(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_phong(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_shadow(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_light(RTCRayHitModel& hit, const float& t);
+	int shaderSelected = 4;
+	const char* shaderNames[5] = { "Normal", "Light", "Shadow", "Lambert", "Phong" };
+
+	Vector3 get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump = 0);
 	Vector3 get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump = 0);
 	//void get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
-	bool get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump, Vector3(Raytracer::*sample_func)(RTCRayHitModel&, const float&));
+	bool get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump, Vector3(Raytracer::*shader)(RTCRayHitModel&, const float&, int bump), bool path = false);
 	Vector3 get_pixel_internal(int x, int y, int t);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 	float get_random_float();
@@ -49,7 +58,7 @@ public:
 	RTCRayHitModel build_ray_model(const RTCRayHit& hit, const float& ior);
 	static bool has_colision(const RTCRayHit& hit);
 	static bool has_colision(const RTCRayHitModel& hit);
-	RayCollision get_collision_type(RTCRayHitModel& hit, const int bump);
+	RayCollision get_collision_type(RTCRayHitModel& hit, const int bump, bool path = false);
 	int get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int bump);
 
 	int Ui();
@@ -82,13 +91,11 @@ private:
 	int RAY_MAP_BUMP = 0;
 	bool ray_map_{ false };
 
-	int LIGHT_MAP_BUMP = 0;
-	bool light_map_{ false };
-
 	float SS_D = 0.1f, SS_MD = 0.25f;
 	int ss_ = 0;
 
-	int BRDF_SAMPLES_EXP = 5;
+	int BRDF_SAMPLES_EXP = 2;
+	int PATH_MAX_BUMPS = 0;
 	bool brdf_{ false };
 
 	int done_ = 0;
@@ -100,3 +107,11 @@ private:
 	void log(chrono::time_point<chrono::steady_clock>& begin, string prefix);
 	void log(chrono::time_point<chrono::steady_clock>& begin, string prefix, int bump);
 };
+/*typedef Vector3(Raytracer::* Shader)(RTCRayHitModel&, const float&);
+const Shader shaders[5] = {
+	&Raytracer::shader_normal,
+	&Raytracer::shader_light,
+	&Raytracer::shader_shadow,
+	&Raytracer::shader_lambert,
+	&Raytracer::shader_phong
+};*/
