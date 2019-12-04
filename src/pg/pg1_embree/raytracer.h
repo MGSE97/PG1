@@ -5,6 +5,7 @@
 #include "cubemap.h"
 #include "RTCRayHitModel.h"
 #include "RayCollision.h"
+#include "Color.h"
 
 /*! \class Raytracer
 \brief General ray tracer class.
@@ -29,24 +30,25 @@ public:
 	int ReleaseDeviceAndScene();
 
 	void LoadScene( const std::string file_name );
-	Vector3 get_material_color(RTCRayHitModel& hit, const float& t, int bump = 0);
+	Color get_material_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = Color_Empty);
 	bool check_shadow(RTCRayHitModel& hit, const float& t, const Vector3& lightVector);
 	Vector3 get_material_diffuse_color(RTCRayHitModel& hit);
 
 	// Shaders
-	Vector3 shader_normal(RTCRayHitModel& hit, const float& t);
-	Vector3 shader_lambert(RTCRayHitModel& hit, const float& t);
-	Vector3 shader_phong(RTCRayHitModel& hit, const float& t);
-	Vector3 shader_shadow(RTCRayHitModel& hit, const float& t);
-	Vector3 shader_light(RTCRayHitModel& hit, const float& t);
+	Color shader_normal(RTCRayHitModel& hit, const float& t);
+	Color shader_lambert(RTCRayHitModel& hit, const float& t);
+	Color shader_phong(RTCRayHitModel& hit, const float& t);
+	Color shader_shadow(RTCRayHitModel& hit, const float& t);
+	Color shader_light(RTCRayHitModel& hit, const float& t);
+	Color shader_brdf_color(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
 	int shaderSelected = 4;
 	const char* shaderNames[5] = { "Normal", "Light", "Shadow", "Lambert", "Phong" };
 
-	Vector3 get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump = 0);
-	Vector3 get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump = 0);
+	Color get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump = 0);
+	Color get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = Color_Empty);
 	//void get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
-	bool get_ray_color(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump, Vector3(Raytracer::*shader)(RTCRayHitModel&, const float&, int bump), bool path = false);
+	bool get_ray_color(RTCRayHit ray_hit, const float& t, Color& color, float& n1, int bump, Color(Raytracer::*shader)(RTCRayHitModel&, const float&, int bump, Color received), bool path = false);
 	Vector3 get_pixel_internal(int x, int y, int t);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 	float get_random_float();
@@ -96,7 +98,8 @@ private:
 
 	int BRDF_SAMPLES_EXP = 2;
 	int PATH_MAX_BUMPS = 0;
-	bool brdf_{ false };
+	bool brdf_{ false }; 
+	bool brdf_deep_{ false };
 
 	int done_ = 0;
 	float f_, rendered_ = 0;

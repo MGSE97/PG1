@@ -83,11 +83,14 @@ void RTCRayHitModel::calc_fresnel()
 	}
 }
 
-Vector3 RTCRayHitModel::calc_result_color(const float& distance)
+Color RTCRayHitModel::calc_result_color(const float& distance)
 {
-	Vector3 color = (colorRefracted * (1.f - R) + colorReflected * R);
-	if(distance >= 0)
-		color = color * material->emission.Exp(-distance);
+	Color color = (colorRefracted * (1.f - R) + colorReflected * R);
+	if (distance >= 0)
+	{
+		Vector3 exp = material->emission.Exp(-distance);
+		color = color * Color{ exp, exp };
+	}
 		//color = color * material->attenuation.Exp(-distance);
 	return color;
 }

@@ -107,3 +107,8 @@ Vector3 CubeMap::get_texel(Vector3 direction)
 		return SrgbTransform::srgbToLinear(color);
 	}
 }
+
+Color CubeMap::get_texel_color(Vector3 direction)
+{
+	return Color{get_texel(direction), emission};
+}
