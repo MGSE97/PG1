@@ -110,6 +110,38 @@ public:
 	\return Index nejvìtší složky vektoru.
 	*/
 	char LargestComponent( const bool absolute_value = false );	
+	
+	//! Nejvìtší složka vektoru.
+	/*!
+	\param absolute_value hodnota bude urèena podle absolutní hodnoty složky
+
+	\return Nejvìtší složka vektoru.
+	*/
+	float LargestValue(const bool absolute_value = false);
+
+	//! Obsahuje složky nerovnající se hodnotì
+	/*!
+	\param eq tresshold for check
+
+	\return T/F
+	*/
+	bool Eq(float eq = 0.f);
+
+	//! Obsahuje složky vìtší než hodnota
+	/*!
+	\param lg tresshold for check
+
+	\return T/F
+	*/
+	bool Lg(float lg = 1.f);
+
+	//! Obsahuje složky menší než hodnota
+	/*!
+	\param le tresshold for check
+
+	\return  T/F
+	*/
+	bool Le(float le = 0.f);
 
 	void Print();
 

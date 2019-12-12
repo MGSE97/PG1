@@ -30,20 +30,25 @@ public:
 	int ReleaseDeviceAndScene();
 
 	void LoadScene( const std::string file_name );
-	Color get_material_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = Color_Empty);
 	bool check_shadow(RTCRayHitModel& hit, const float& t, const Vector3& lightVector);
-	Vector3 get_material_diffuse_color(RTCRayHitModel& hit);
+	Color get_material_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = Color_Empty);
 
-	// Shaders
+	// Shaders Raytracer
 	Color shader_normal(RTCRayHitModel& hit, const float& t);
 	Color shader_lambert(RTCRayHitModel& hit, const float& t);
 	Color shader_phong(RTCRayHitModel& hit, const float& t);
 	Color shader_shadow(RTCRayHitModel& hit, const float& t);
 	Color shader_light(RTCRayHitModel& hit, const float& t);
-	Color shader_brdf_color(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
 	int shaderSelected = 4;
 	const char* shaderNames[5] = { "Normal", "Light", "Shadow", "Lambert", "Phong" };
 
+	// Shaders Pathtracer
+	Color shader_brdf_lambert(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
+	Color shader_brdf_phong(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
+	int shaderSelected2 = 1;
+	const char* shaderNames2[5] = { "Lambert", "Phong" };
+
+	Color shader_brdf_color(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
 	Color get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump = 0);
 	Color get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = Color_Empty);
 	//void get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
@@ -68,10 +73,10 @@ public:
 private:
 	std::random_device rd_;
 	std::mt19937 e2_;
-	uniform_real_distribution<> dist_;
+	uniform_real_distribution<float> dist_;
 
 	std::mt19937 ss_e2_;
-	uniform_real_distribution<> ss_dist_;
+	uniform_real_distribution<float> ss_dist_;
 
 	std::vector<Surface *> surfaces_;
 	std::vector<Material *> materials_;
@@ -96,7 +101,7 @@ private:
 	float SS_D = 0.1f, SS_MD = 0.25f;
 	int ss_ = 0;
 
-	int BRDF_SAMPLES_EXP = 2;
+	int BRDF_SAMPLES = 50;
 	int PATH_MAX_BUMPS = 0;
 	bool brdf_{ false }; 
 	bool brdf_deep_{ false };

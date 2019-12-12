@@ -56,11 +56,11 @@ Raytracer::Raytracer(const int width, const int height,
 	light_ = *light;
 	lightPower_ = *lightPower;
 
-	ss_e2_ = std::mt19937(rd_());
-	ss_dist_ = std::uniform_real_distribution<>(-SS_D, SS_D);
+	ss_e2_ = std::mt19937(random_device{}());
+	ss_dist_ = std::uniform_real_distribution<float>(-SS_D, SS_D);
 
-	e2_ = std::mt19937(rd_());
-	dist_ = std::uniform_real_distribution<>(0.f, 1.f);
+	e2_ = std::mt19937(random_device{}());
+	dist_ = std::uniform_real_distribution<float> (0.f, 1.f);
 
 	times["get_pixel"] = 0;
 	for (int i = 0; i < 11; i++)
@@ -208,43 +208,35 @@ bool Raytracer::check_shadow(RTCRayHitModel& hit, const float& t, const Vector3&
 {
 	// Check Shadow
 	// Only if is above normal
-	bool shadow = !hit.material->isTransparent() && hit.normal.DotProduct(lightVector) < 0;
-	if (shadows_ && !shadow)
+	Vector3 shadow = (!hit.material->isTransparent() && hit.normal.DotProduct(lightVector) < 0 ? Vector3{ 0,0,0 } : Vector3{ 1,1,1 });
+	if (shadows_ && shadow.Lg(0.f))
 	{
 		auto ray = cast_ray(hit.hit, light_, t);
 		if (has_colision(ray))
 		{
 			auto data = build_ray_model(ray, hit.material->ior);
-			while (!data.material->isTransparent())
+			if(data.material->isTransparent())
+				shadow -= data.material->attenuation.Exp(data.n1 == IOR_AIR ? 0 : -data.core.ray.tfar);
+
+			while (!data.material->isTransparent() && shadow.Lg(0.f))
 			{
 				ray = cast_ray(hit.hit, light_, t, data.core.ray.tfar + 0.1f);
 				if (has_colision(ray))
+				{
 					data = build_ray_model(ray, hit.material->ior);
+					if (data.material->isTransparent())
+						shadow -= data.material->attenuation.Exp(data.n1 == IOR_AIR ? 0 : -data.core.ray.tfar);
+				}
 				else
 					break;
 			}
 
-			if (!data.material->isTransparent())
-				shadow = true;
+			if (!data.material->isTransparent() || !shadow.Lg(0.f))
+				shadow = { 0,0,0 };
 		}
 	}
 
-	return shadow;
-}
-
-Vector3 Raytracer::get_material_diffuse_color(RTCRayHitModel& hit)
-{
-	// Get Difuse
-	Vector3 color = hit.material->diffuse;
-	Texture* difuse = hit.material->get_texture(hit.material->kDiffuseMapSlot);
-	if (difuse != nullptr)
-	{
-		Color3f texlet = difuse->get_texel(hit.tex_coord.u, 1.0f - hit.tex_coord.v);
-		color.x = texlet.r;
-		color.y = texlet.g;
-		color.z = texlet.b;
-	}
-	return color;
+	return !shadow.Lg(0.f);
 }
 
 Color Raytracer::shader_normal(RTCRayHitModel& hit, const float& t)
@@ -260,10 +252,9 @@ Color Raytracer::shader_lambert(RTCRayHitModel& hit, const float& t)
 	if (check_shadow(hit, t, light))
 		return Color_Empty;
 
-	Vector3 diffuse = get_material_diffuse_color(hit);
 	return {
-		lightPower_.y * diffuse * hit.normal.DotProduct(light) +
-		diffuse * hit.material->emission
+		lightPower_.y * hit.colorDiffuse * hit.normal.DotProduct(light) +
+		hit.material->emission
 		, hit.material->emission
 	};
 }
@@ -283,11 +274,10 @@ Color Raytracer::shader_phong(RTCRayHitModel& hit, const float& t)
 	cam.Normalize();
 
 	Vector3 power = lightPower_;
-	Vector3 diffuse = get_material_diffuse_color(hit);
 
 	return {
 		power.x * hit.material->ambient +
-		power.y * diffuse * max(hit.normal.DotProduct(light), 0.f) +
+		power.y * hit.colorDiffuse * max(hit.normal.DotProduct(light), 0.f) +
 		power.z * hit.material->specular * powf(max(reflected.DotProduct(cam), 0.f), hit.material->shininess) +
 		hit.material->emission
 		, hit.material->emission
@@ -369,32 +359,42 @@ Matrix3x3 createCoordinateSystem(const Vector3& N)
 	return Matrix3x3(Nt, N, Nb);
 }
 
+Color Raytracer::shader_brdf_lambert(RTCRayHitModel& hit, const float& t, Color received)
+{
+
+	auto omegaIN = max(hit.dir.DotProduct(hit.normal), hit.dir.DotProduct(-hit.normal));
+
+	Vector3 light = light_;
+	light.Normalize();
+
+	// I = 1/(d^2)
+	//float d = hit.core.ray.tfar, d2 = min(2.f / d, 0.5f);
+	float d = (hit.hit - hit.from).L2Norm(), d2 = min(2.f / d, 0.5f);//1.f / (M_4PI * d); //min(2 / (d), 0.5f);
+	received.Emission = received.Emission * d2;
+	received.RGB = received.RGB * d2;
+
+	//return { received.Emission, hit.material->emission + received.Emission };
+	//auto colorPower = hit.material->emission * omegaIN + received.Emission;
+	auto l = check_shadow(hit, t, light_) ? 0.f : lightPower_.y * max(hit.normal.DotProduct(light), 0.f);
+	auto colorPower = (Vector3{ l,l,l } + hit.material->emission) * omegaIN + received.Emission;
+	auto color = hit.material->diffuse * colorPower + received.RGB * received.Emission;
+	return { color , colorPower };
+}
+
+Color Raytracer::shader_brdf_phong(RTCRayHitModel& hit, const float& t, Color received)
+{
+	auto part = get_random_float(), pd =hit.colorDiffuse.LargestValue(), ps = hit.colorSpecular.LargestValue();
+	Color color;
+	if (part * (pd + ps) < ps)
+		color = shader_brdf_lambert(hit, t, received);
+	else
+		color = Color_Empty * powf(hit.reflected.DotProduct(-hit.dir), hit.material->shininess);
+	return color;
+}
+
 Color Raytracer::shader_brdf_color(RTCRayHitModel& hit, const float& t, Color received)
 {
-	//return { hit.material->diffuse + hit.material->emission, hit.material->emission };
-	/*auto R = 0.5f,
-		 F = 0.5f;*/
-		 //return { received.Emission, hit.material->emission };
-		 //return { hit.material->diffuse * received.Emission, hit.material->emission };
-		 //return { hit.material->diffuse * received.Emission * F, hit.material->emission };
-		 //received.Emission /= PI;
-		 //return { hit.material->diffuse * received.Emission, hit.material->emission + received.Emission };
-	auto power = hit.material->emission + received.Emission / PI;
-	//return { hit.material->diffuse + hit.material->emission, {0,0,0} };
-	return { (hit.material->diffuse + power) * (1.f - hit.R) + received.RGB * hit.R , power };
-	/*return {
-		// Refraction
-		(
-			// Emissive mat
-			hit.material->diffuse + hit.material->emission
-		) * power +
-		(
-			// Reflection
-			// Received color
-			received.RGB
-		),
-		power
-	};*/
+	return shader_brdf_lambert(hit, t, received);
 }
 
 Color Raytracer::get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump, Color received)
@@ -402,26 +402,26 @@ Color Raytracer::get_material_brdf_color(RTCRayHitModel& hit, const float& t, in
 	if (bump >= (brdf_deep_ ? PATH_MAX_BUMPS : 1))
 		//return { hit.material->diffuse + hit.material->emission, hit.material->emission };
 		return shader_brdf_color(hit, t, received);
-//return get_material_shader_color(hit, t);
+	//return get_material_shader_color(hit, t);
 	bump++;
 
 	// Sample half sphere
-	int samples = pow(10, BRDF_SAMPLES_EXP);
-	float pdf = 1 / (2 * PI);
+	int samples = BRDF_SAMPLES;//pow(10, BRDF_SAMPLES_EXP);
+	float pdf = M_1_2PI;
 	Color color = Color_Empty;
 	Matrix3x3 world = createCoordinateSystem(hit.normal.DotProduct(-hit.dir) < 0 ? -hit.normal : hit.normal);
 	for (int i = 0; i < samples; i++)
 	{
-		float ru = get_random_float(),
+		float	ru = get_random_float(),
 			rv = get_random_float();
 		float sinTheta = sqrtf(1 - ru * ru);
-		float phi = 2 * M_PI * rv;
+		float phi = M_2PI * rv;
 		float x = sinTheta * cosf(phi);
 		float z = sinTheta * sinf(phi);
 
 		auto dir = world * Vector3(x, ru, z);
 
-		auto ray = cast_ray(hit.hit, dir, t);
+		auto ray = cast_ray(hit.hit, dir, t, 0.0001f);
 		Color result = Color_Empty;
 		get_ray_color(ray, t, result, hit.n1, bump, &Raytracer::get_material_brdf_color, true);
 		/*if (has_colision(ray))
@@ -430,11 +430,16 @@ Color Raytracer::get_material_brdf_color(RTCRayHitModel& hit, const float& t, in
 			if (model.material != nullptr)
 				//result = get_material_brdf_color(model, t, bump);
 		}*/
-		color += result;// *ru / pdf;
+		color += result * ru / pdf;// *ru / pdf;
 	}
 	color /= (float)samples;
 	//return (Color(hit.material->diffuse + hit.material->emission, hit.material->emission ) *color) / PI;
-	return (shader_brdf_color(hit, t, color) * color) / PI;
+	color = shader_brdf_color(hit, t, color);
+	if (get_random_float() > hit.rouletteRho)
+		color *= 1.f / hit.rouletteRho;
+	return color * M_1_PI;
+	//color.RGB = color.RGB + color.Emission;
+	//return (color) / PI;
 
 
 	//// Sample half sphere
@@ -620,7 +625,7 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Color& color, f
 	{
 		auto data = build_ray_model(ray_hit, n1);
 		bump++;
-		float distance = data.core.ray.tfar;
+		float distance = (data.hit - data.from).L2Norm(); //data.core.ray.tfar;
 		switch (get_collision_type(data, bump, path))
 		{
 		case Diffuse:
@@ -780,7 +785,7 @@ int Raytracer::Ui()
 	ImGui::Checkbox("BRDF", &brdf_);
 	ImGui::Checkbox("BRDF Deep", &brdf_deep_);
 	ImGui::SliderInt("Path depth", &PATH_MAX_BUMPS, 0, 20);
-	ImGui::SliderInt("BRDF Samples", &BRDF_SAMPLES_EXP, 0, 10);
+	ImGui::SliderInt("BRDF Samples", &BRDF_SAMPLES, 0, 1000);
 	ImGui::Separator();
 
 	//ImGui::Checkbox( "Demo Window", &show_demo_window ); // Edit bools storing our window open/close state

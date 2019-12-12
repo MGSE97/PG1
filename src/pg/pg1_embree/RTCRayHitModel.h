@@ -16,6 +16,7 @@ public:
 	void calc_reflection();
 	void calc_refraction();
 	void calc_fresnel();
+	void load_material();
 
 	Color calc_result_color(const float& distance);
 
@@ -38,4 +39,8 @@ public:
 
 	Color colorRefracted;
 	Color colorReflected;
+
+	Vector3 colorDiffuse;
+	Vector3 colorSpecular;
+	float rouletteRho;
 };

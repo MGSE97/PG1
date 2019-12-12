@@ -97,6 +97,51 @@ char Vector3::LargestComponent( const bool absolute_value )
 	return -1;
 }
 
+float Vector3::LargestValue(const bool absolute_value)
+{
+	const Vector3 d = (absolute_value) ? Vector3(abs(x), abs(y), abs(z)) : *this;
+
+	if (d.x > d.y)
+	{
+		if (d.x > d.z)
+		{
+			return x;
+		}
+		else
+		{
+			return z;
+		}
+	}
+	else
+	{
+		if (d.y > d.z)
+		{
+			return y;
+		}
+		else
+		{
+			return z;
+		}
+	}
+
+	return 0;
+}
+
+bool Vector3::Eq(float eq)
+{
+	return x != eq || y != eq || z != eq;
+}
+
+bool Vector3::Lg(float lg)
+{
+	return x > lg || y > lg || z > lg;
+}
+
+bool Vector3::Le(float le)
+{
+	return x < le || y < le || z < le;
+}
+
 void Vector3::Print()
 {
 	printf( "(%0.3f, %0.3f, %0.3f)\n", x, y, z ); 

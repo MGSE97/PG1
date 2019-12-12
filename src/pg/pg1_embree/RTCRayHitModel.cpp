@@ -33,6 +33,29 @@ void RTCRayHitModel::load_geometry_data()
 	material = static_cast<Material*>(rtcGetGeometryUserData(geometry));
 
 	n2 = n1 > IOR_AIR ? IOR_AIR : material->ior;
+
+	load_material();
+
+	rouletteRho = material->diffuse.LargestValue();
+}
+
+void RTCRayHitModel::load_material()
+{
+	// Get Difuse
+	if (material != nullptr)
+	{
+		colorDiffuse = material->diffuse;
+		Texture* diffuse = material->get_texture(material->kDiffuseMapSlot);
+		if (diffuse != nullptr)
+		{
+			Color3f texlet = diffuse->get_texel(tex_coord.u, 1.0f - tex_coord.v);
+			colorDiffuse.x = texlet.r;
+			colorDiffuse.y = texlet.g;
+			colorDiffuse.z = texlet.b;
+		}
+
+		colorSpecular = material->specular;
+	}
 }
 
 void RTCRayHitModel::calc_reflection()

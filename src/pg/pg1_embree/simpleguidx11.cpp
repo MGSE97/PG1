@@ -111,36 +111,38 @@ void SimpleGuiDX11::Producer()
 
 		// compute rendering
 		//std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
-		#pragma omp parallel for
+		//#pragma omp parallel for collapse(2) shared(local_data) shared(bitmap) shared(t0) shared(t)
 		for ( int y = 0; y < height_; ++y )
 		{
+			/*#pragma omp critical
+			{*/
+				auto t2 = std::chrono::high_resolution_clock::now();
+				lastFrame_ = t2 - t0;
+			//}
 
-			auto t2 = std::chrono::high_resolution_clock::now();
-			lastFrame_ = t2 - t0;
-			//#pragma omp parallel for
+			#pragma omp parallel for shared(t) shared(local_data) shared(bitmap)
 			for ( int x = 0; x < width_; ++x )
 			{	
 				const Color4f pixel = get_pixel( x, y, t );
 				const int offset = ( y * width_ + x ) * 4;
-				//int offset2 = (y * width_ + x) * pixel_size;
 
 				local_data[offset] = pixel.r;
 				local_data[offset + 1] = pixel.g;
 				local_data[offset + 2] = pixel.b;
 				local_data[offset + 3] = pixel.a;
 
-				if (save_)
-				{
+				//if (save_)
+				//{
 					RGBQUAD color;
 					color.rgbBlue = pixel.b * 255.f;
 					color.rgbGreen = pixel.g * 255.f;
 					color.rgbRed = pixel.r * 255.f;
 					color.rgbReserved = pixel.a * 255.f;
 					FreeImage_SetPixelColor(bitmap, x, height_ - y, &color);
-				}
+				//}
 			}
 
-			#pragma omp atomic
+			//#pragma omp atomic
 			current_ ++;
 
 		}
