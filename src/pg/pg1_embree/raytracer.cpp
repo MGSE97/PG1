@@ -197,7 +197,7 @@ Color Raytracer::get_material_color(RTCRayHitModel& hit, const float& t, int bum
 		//return (get_material_phong_color(hit, t) + get_material_brdf_color(hit, t)) / PI;
 		//return (get_material_shader_color(hit, t) / PI + 2*get_material_brdf_color(hit, t));
 		//return (get_material_shader_color(hit, t) + get_material_brdf_color(hit, t, bump)) / 2.f;
-		return get_material_brdf_color(hit, t, bump, received);
+		return get_material_shader_color(hit, t) + get_material_brdf_color(hit, t, bump, received);
 	//return get_material_phong_color(hit, t) * get_material_brdf_color(hit, t);
 	//return get_material_phong_color(hit, t)*(1.f - hit.R) +get_material_brdf_color(hit, t) * hit.R;
 	else
@@ -345,18 +345,23 @@ Color Raytracer::get_material_shader_color(RTCRayHitModel& hit, const float& t, 
 	return { SrgbTransform::srgbToLinear(color.RGB), color.Emission };
 }
 
-Matrix3x3 createCoordinateSystem(const Vector3& N)
+Matrix3x3 createCoordinateSystem(Vector3 N)
 {
-	// https://www.scratchapixel.com/lessons/3d-basic-rendering/global-illumination-path-tracing/global-illumination-path-tracing-practical-implementation
-	Vector3 Nt, Nb;
-	if (std::fabs(N.x) > std::fabs(N.y))
-		Nt = Vector3(N.z, 0, -N.x);
-	else
-		Nt = Vector3(0, -N.z, N.y);
-	Nb = N.CrossProduct(Nt);
-	Nt.Normalize();
-	Nb.Normalize();
-	return Matrix3x3(Nt, N, Nb);
+	Vector3 o1 = N.Orthogonal().Normalize();
+	Vector3 o2 = o1.CrossProduct(N).Normalize();
+	return { o2, o1, N };
+
+	//// https://www.scratchapixel.com/lessons/3d-basic-rendering/global-illumination-path-tracing/global-illumination-path-tracing-practical-implementation
+	//Vector3 Nt, Nb;
+	//if (std::fabs(N.x) > std::fabs(N.y))
+	//	Nt = Vector3(N.z, 0, -N.x);
+	//else
+	//	Nt = Vector3(0, -N.z, N.y);
+	//Nb = N.CrossProduct(Nt);
+	//Nt.Normalize();
+	//Nb.Normalize();
+	////return Matrix3x3(Nt, N, Nb);
+	//return Matrix3x3(Nt, Nb, N);
 }
 
 Color Raytracer::shader_brdf_lambert(RTCRayHitModel& hit, const float& t, Color received)
@@ -364,21 +369,36 @@ Color Raytracer::shader_brdf_lambert(RTCRayHitModel& hit, const float& t, Color 
 
 	auto omegaIN = max(hit.dir.DotProduct(hit.normal), hit.dir.DotProduct(-hit.normal));
 
-	Vector3 light = light_;
-	light.Normalize();
+	/*Vector3 light = light_;
+	light.Normalize();*/
 
 	// I = 1/(d^2)
 	//float d = hit.core.ray.tfar, d2 = min(2.f / d, 0.5f);
-	float d = (hit.hit - hit.from).L2Norm(), d2 = min(2.f / d, 0.5f);//1.f / (M_4PI * d); //min(2 / (d), 0.5f);
+	//float d = (hit.hit - hit.from).L2Norm(), d2 = min(2.f / d, 0.5f);//1.f / (M_4PI * d); //min(2 / (d), 0.5f);
+	/*float d = (hit.hit - hit.from).L2Norm() / 16.f, d2 = min(1.f / d, 0.5f);
 	received.Emission = received.Emission * d2;
-	received.RGB = received.RGB * d2;
+	received.RGB = received.RGB * d2;*/
+
+	/*received.Emission *= 0.5f;
+	received.RGB *= 0.5f;*/
+	if (hit.material->emission.Lg(0.f))
+		return { hit.material->emission * received.Emission, hit.material->diffuse * M_1_PI * omegaIN * received.Emission };
+		//return { hit.material->diffuse + received.RGB , hit.material->emission + received.Emission } * omegaIN;*/
+
+	return { received.Emission, hit.material->diffuse * M_1_PI * omegaIN * received.Emission };
+	/*return Color{ hit.material->diffuse * (hit.material->emission + received.Emission), hit.material->emission + received.Emission } * M_1_PI * omegaIN;
+	return Color{ hit.material->diffuse * M_1_PI + received.RGB, hit.material->emission * M_1_PI + received.Emission } * omegaIN;*/
+
+	/*auto power = hit.material->emission * omega_o + received.Emission;
+	return { {hit.colorDiffuse * omegaIN * M_1_PI * power}, power };
+	//return { {hit.colorDiffuse * omegaIN * M_1_PI * power + received.RGB * omegaIN}, power };
 
 	//return { received.Emission, hit.material->emission + received.Emission };
 	//auto colorPower = hit.material->emission * omegaIN + received.Emission;
 	auto l = check_shadow(hit, t, light_) ? 0.f : lightPower_.y * max(hit.normal.DotProduct(light), 0.f);
 	auto colorPower = (Vector3{ l,l,l } + hit.material->emission) * omegaIN + received.Emission;
 	auto color = hit.material->diffuse * colorPower + received.RGB * received.Emission;
-	return { color , colorPower };
+	return { color , colorPower };*/
 }
 
 Color Raytracer::shader_brdf_phong(RTCRayHitModel& hit, const float& t, Color received)
@@ -392,6 +412,39 @@ Color Raytracer::shader_brdf_phong(RTCRayHitModel& hit, const float& t, Color re
 	return color;
 }
 
+Sample Raytracer::sample_hemisphere(RTCRayHitModel& hit, const float& t, Matrix3x3& world)
+{
+	Sample sample = Sample();
+	//sample.PDF = M_1_2PI;
+
+	float	ru = get_random_float(),
+			rv = get_random_float();
+	float sinTheta = sqrtf(1 - rv);
+	float phi = M_2PI * ru;
+	float x = sinTheta * cosf(phi);
+	float y = sinTheta * sinf(phi);
+
+	sample.Dir = world * Vector3(x, y, sqrtf(rv));
+	sample.OmegaIN = hit.normal.DotProduct(sample.Dir);
+	if (sample.OmegaIN < 0)
+	{
+		sample.Dir = -sample.Dir;
+		sample.OmegaIN = -sample.OmegaIN;
+	}
+
+	sample.PDF = sample.OmegaIN * M_1_PI;
+	sample.Ray = cast_ray(hit.hit, sample.Dir, t);
+	sample.colision = has_colision(sample.Ray);
+	/*if (sample.colision)
+	{
+		sample.Model = build_ray_model(sample.Ray, hit.n1);
+		sample.OmegaI = -sample.Model.dir;
+		sample.OmegaIN = sample.OmegaI.DotProduct(sample.Model.normal);
+	}*/
+
+	return sample;
+}
+
 Color Raytracer::shader_brdf_color(RTCRayHitModel& hit, const float& t, Color received)
 {
 	return shader_brdf_lambert(hit, t, received);
@@ -399,47 +452,93 @@ Color Raytracer::shader_brdf_color(RTCRayHitModel& hit, const float& t, Color re
 
 Color Raytracer::get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump, Color received)
 {
-	if (bump >= (brdf_deep_ ? PATH_MAX_BUMPS : 1))
-		//return { hit.material->diffuse + hit.material->emission, hit.material->emission };
-		return shader_brdf_color(hit, t, received);
-	//return get_material_shader_color(hit, t);
-	bump++;
+	// Last
+	float rho = get_random_float();
+	if (bump > PATH_MAX_BUMPS || rho >= hit.rouletteRho)
+		return Color_Empty;
+		//return { hit.colorDiffuse, {0,0,0} };// Color_Empty;
 
-	// Sample half sphere
-	int samples = BRDF_SAMPLES;//pow(10, BRDF_SAMPLES_EXP);
-	float pdf = M_1_2PI;
-	Color color = Color_Empty;
-	Matrix3x3 world = createCoordinateSystem(hit.normal.DotProduct(-hit.dir) < 0 ? -hit.normal : hit.normal);
-	for (int i = 0; i < samples; i++)
+	// Emissive
+	Color color = { hit.material->emission, hit.material->emission }; // C, T
+	if (hit.material->emission.Lg(0.f))
+		return color;
+
+	// Normal
+	Matrix3x3 world = createCoordinateSystem(hit.normal);
+	int samples = brdf_deep_ ? BRDF_SAMPLES : (BRDF_SAMPLES / (bump + 1) + 1);
+	for (int i = 0, j; i < samples; i++)
 	{
-		float	ru = get_random_float(),
-			rv = get_random_float();
-		float sinTheta = sqrtf(1 - ru * ru);
-		float phi = M_2PI * rv;
-		float x = sinTheta * cosf(phi);
-		float z = sinTheta * sinf(phi);
-
-		auto dir = world * Vector3(x, ru, z);
-
-		auto ray = cast_ray(hit.hit, dir, t, 0.0001f);
-		Color result = Color_Empty;
-		get_ray_color(ray, t, result, hit.n1, bump, &Raytracer::get_material_brdf_color, true);
-		/*if (has_colision(ray))
+		//j = 0;
+		auto sample = sample_hemisphere(hit, t, world);
+		/*while (!sample.colision && j < BRDF_SAMPLES / 2)
 		{
-			auto model = build_ray_model(ray, hit.material->ior);
-			if (model.material != nullptr)
-				//result = get_material_brdf_color(model, t, bump);
+			sample = sample_hemisphere(hit, t, world);
+			j++;
 		}*/
-		color += result * ru / pdf;// *ru / pdf;
+		
+		if (!sample.colision)
+		{
+			color.RGB += cubeMap_->get_texel(sample.Dir);
+			//color.Emission += cubeMap_->get_texel(sample.Dir);
+			continue;
+		}
+
+		Color result;
+		get_ray_color(sample.Ray, t, result, hit.n1, bump + 1, &Raytracer::get_material_brdf_color, true);
+		auto fr = hit.colorDiffuse * M_1_PI;
+		//auto fr = sample.Model.rouletteRho * M_1_PI;
+
+		Vector3 tmp = result.RGB * fr * sample.OmegaIN * 1.f / sample.PDF;
+		//Vector3 tmpe = result.Emission * fr * sample.OmegaIN * 1.f / sample.PDF;
+		//Vector3 tmp = result.RGB * fr * 1.f / (sample.PDF);
+		color.RGB += tmp;
+		//color.Emission += tmpe;
 	}
-	color /= (float)samples;
-	//return (Color(hit.material->diffuse + hit.material->emission, hit.material->emission ) *color) / PI;
-	color = shader_brdf_color(hit, t, color);
-	if (get_random_float() > hit.rouletteRho)
-		color *= 1.f / hit.rouletteRho;
-	return color * M_1_PI;
-	//color.RGB = color.RGB + color.Emission;
-	//return (color) / PI;
+
+	return color / (samples * hit.rouletteRho);
+
+
+	//if (bump >= (brdf_deep_ ? PATH_MAX_BUMPS : 1))
+	//	//return { hit.material->diffuse + hit.material->emission, hit.material->emission };
+	//	return shader_brdf_color(hit, t, received);
+	////return get_material_shader_color(hit, t);
+	//bump++;
+
+	//// Sample half sphere
+	//int samples = BRDF_SAMPLES;//pow(10, BRDF_SAMPLES_EXP);
+	//float pdf = M_1_2PI;
+	//Color color = Color_Empty;
+	//Matrix3x3 world = createCoordinateSystem(hit.normal.DotPrqeoduct(-hit.dir) < 0 ? -hit.normal : hit.normal);
+	//for (int i = 0; i < samples; i++)
+	//{
+	//	float	ru = get_random_float(),
+	//		rv = get_random_float();
+	//	float sinTheta = sqrtf(1 - ru * ru);
+	//	float phi = M_2PI * rv;vv
+	//	float x = sinTheta * cosf(phi);
+	//	float z = sinTheta * sinf(phi);
+
+	//	auto dir = world * Vector3(x, ru, z);
+
+	//	auto ray = cast_ray(hit.hit, dir, t, 0.0001f);
+	//	Color result = Color_Empty;
+	//	get_ray_color(ray, t, result, hit.n1, bump, &Raytracer::get_material_brdf_color, true);
+	//	/*if (has_colision(ray))
+	//	{
+	//		auto model = build_ray_model(ray, hit.material->ior);
+	//		if (model.material != nullptr)
+	//			//result = get_material_brdf_color(model, t, bump);
+	//	}*/
+	//	color += result / pdf;// *ru / pdf;
+	//}
+	//color /= (float)samples;
+	////return (Color(hit.material->diffuse + hit.material->emission, hit.material->emission ) *color) / PI;
+	//color = shader_brdf_color(hit, t, color);
+	//if (get_random_float() > hit.rouletteRho)
+	//	color *= 1.f / hit.rouletteRho;
+	//return color * M_1_PI;
+	////color.RGB = color.RGB + color.Emission;
+	////return (color) / PI;
 
 
 	//// Sample half sphere
@@ -785,7 +884,7 @@ int Raytracer::Ui()
 	ImGui::Checkbox("BRDF", &brdf_);
 	ImGui::Checkbox("BRDF Deep", &brdf_deep_);
 	ImGui::SliderInt("Path depth", &PATH_MAX_BUMPS, 0, 20);
-	ImGui::SliderInt("BRDF Samples", &BRDF_SAMPLES, 0, 1000);
+	ImGui::SliderInt("BRDF Samples", &BRDF_SAMPLES, 1, 1000);
 	ImGui::Separator();
 
 	//ImGui::Checkbox( "Demo Window", &show_demo_window ); // Edit bools storing our window open/close state
@@ -808,6 +907,17 @@ int Raytracer::Ui()
 	// Buttons return true when clicked (most widgets return true when edited/activated)
 	if (ImGui::Button("Update Target"))
 		camera_.Update();
+	if (ImGui::Button("Clear Accumulator"))
+	{
+		n = 0;
+		for (int y = 0; y < height(); ++y)
+			for (int x = 0; x < width(); ++x)
+			{
+				const int offset = (y * width() + x) * 4;
+				for(int c = 0; c < 4; c++)
+					accumulator[offset + c] = 0.f;
+			}
+	}
 	//counter++;
 /*ImGui::SameLine();
 ImGui::Text( "counter = %d", counter );*/

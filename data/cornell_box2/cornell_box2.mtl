@@ -41,7 +41,7 @@ newmtl white_light
   Ka 0.1 0.1 0.1
 	Kd 1.0 1.0 1.0
 	Ks 1.0 1.0 1.0
-  Ke 1500.0 1500.0 1500.0
+  Ke 20.0 20.0 20.0
   shader 5
 
 newmtl white_phong

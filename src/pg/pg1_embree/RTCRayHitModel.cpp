@@ -14,7 +14,8 @@ RTCRayHitModel::RTCRayHitModel(const RTCRayHit& ray_hit, const RTCScene* ray_sce
 	dir = Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
 	dir.Normalize();
 	hit = from + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
-	load_geometry_data();
+	if(core.hit.geomID != RTC_INVALID_GEOMETRY_ID)
+		load_geometry_data();
 }
 
 void RTCRayHitModel::load_geometry_data()
@@ -25,7 +26,7 @@ void RTCRayHitModel::load_geometry_data()
 	// get interpolated normal
 	rtcInterpolate0(geometry, core.hit.primID, core.hit.u, core.hit.v, RTC_BUFFER_TYPE_VERTEX_ATTRIBUTE, 0, &raw_normal.x, 3);
 	normal = { raw_normal.x, raw_normal.y, raw_normal.z };
-	if (normal.DotProduct(from) < 0)
+	if (normal.DotProduct(-dir) < 0)
 		normal = -normal;
 
 	rtcInterpolate0(geometry, core.hit.primID, core.hit.u, core.hit.v, RTC_BUFFER_TYPE_VERTEX_ATTRIBUTE, 1, &tex_coord.u, 2);
@@ -36,7 +37,7 @@ void RTCRayHitModel::load_geometry_data()
 
 	load_material();
 
-	rouletteRho = material->diffuse.LargestValue();
+	rouletteRho = colorDiffuse.LargestValue();
 }
 
 void RTCRayHitModel::load_material()

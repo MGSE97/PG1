@@ -30,7 +30,7 @@ float Vector3::SqrL2Norm() const
 	return sqr( x ) + sqr( y ) + sqr( z );
 }
 
-void Vector3::Normalize()
+Vector3 Vector3::Normalize()
 {
 	const float norm = SqrL2Norm();
 
@@ -42,6 +42,8 @@ void Vector3::Normalize()
 		y *= rn;
 		z *= rn;
 	}
+
+	return *this;
 }
 
 Vector3 Vector3::CrossProduct( const Vector3 & v ) const
@@ -125,6 +127,11 @@ float Vector3::LargestValue(const bool absolute_value)
 	}
 
 	return 0;
+}
+
+Vector3 Vector3::Orthogonal()
+{
+	return (abs(x) > abs(z)) ? Vector3(-y, x, 0.0f) : Vector3(0.0f, -z, y);
 }
 
 bool Vector3::Eq(float eq)

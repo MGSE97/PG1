@@ -217,7 +217,7 @@ int tutorial_5(const std::string file_name, const char* config)
 {
 	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 10,-15,10 }, &Vector3{ 1,1,1 }, &Vector3(0,0,0), config);
 	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 5,5,10 }, &Vector3{ 1,1,1 }, &Vector3(0, 0, 0), config);
-	Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 157,-157,105 }, &Vector3{ 1,1,1 }, &Vector3(0, 0, 0), config);
+	Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 157,-157,105 }, &Vector3{ 0,0,0 }, &Vector3(0, 0, 0), config);
 	//Raytracer raytracer(1920, 1080, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 157,-157,105 }, &Vector3{ 1,1,1 }, &Vector3(0, 0, 0), config);
 	//Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3(0,0,0), config);
 	raytracer.LoadScene(file_name);

@@ -177,6 +177,7 @@
     <ClInclude Include="RayCollision.h" />
     <ClInclude Include="raytracer.h" />
     <ClInclude Include="RTCRayHitModel.h" />
+    <ClInclude Include="Sample.h" />
     <ClInclude Include="simpleguidx11.h" />
     <ClInclude Include="SrgbTransform.h" />
     <ClInclude Include="stdafx.h" />

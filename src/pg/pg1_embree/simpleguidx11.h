@@ -44,6 +44,9 @@ protected:
 	std::chrono::duration<float> lastFrame_;
 	std::chrono::duration<float> running_;
 
+	float* accumulator;
+	float n;
+
 private:	
 	WNDCLASSEX wc_;
 	HWND hwnd_;

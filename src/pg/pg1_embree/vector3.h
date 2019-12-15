@@ -80,8 +80,9 @@ public:
 	//! Normalizace vektoru.
 	/*!
 	Po provedení operace bude mít vektor jednotkovou délku.
+	\return Normalizovaný vektor
 	*/
-	void Normalize();
+	Vector3 Normalize();
 
 	//! Vektorový souèin.
 	/*!
@@ -118,6 +119,13 @@ public:
 	\return Nejvìtší složka vektoru.
 	*/
 	float LargestValue(const bool absolute_value = false);
+
+	//! Ortogonální vektor aktuálního vektoru.
+	/*!
+
+	\return Ortogonální vektor.
+	*/
+	Vector3 Orthogonal();
 
 	//! Obsahuje složky nerovnající se hodnotì
 	/*!

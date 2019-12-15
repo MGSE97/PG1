@@ -6,6 +6,7 @@
 #include "RTCRayHitModel.h"
 #include "RayCollision.h"
 #include "Color.h"
+#include "Sample.h"
 
 /*! \class Raytracer
 \brief General ray tracer class.
@@ -48,9 +49,12 @@ public:
 	int shaderSelected2 = 1;
 	const char* shaderNames2[5] = { "Lambert", "Phong" };
 
+	// Samping
+	Sample sample_hemisphere(RTCRayHitModel& hit, const float& t, Matrix3x3& world);
+
 	Color shader_brdf_color(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
 	Color get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump = 0);
-	Color get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = Color_Empty);
+	Color get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = { {0,0,0},{1,1,1} });
 	//void get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
 
 	bool get_ray_color(RTCRayHit ray_hit, const float& t, Color& color, float& n1, int bump, Color(Raytracer::*shader)(RTCRayHitModel&, const float&, int bump, Color received), bool path = false);
@@ -91,7 +95,7 @@ private:
 	bool shadows_{ true };
 
 	float MAX_RAYS = 3628800.f;
-	int RAY_MAX_BUMPS = 0;
+	int RAY_MAX_BUMPS = 4;
 	bool refr_{ true };
 	bool refl_{ true };
 
@@ -101,10 +105,10 @@ private:
 	float SS_D = 0.1f, SS_MD = 0.25f;
 	int ss_ = 0;
 
-	int BRDF_SAMPLES = 50;
-	int PATH_MAX_BUMPS = 0;
-	bool brdf_{ false }; 
-	bool brdf_deep_{ false };
+	int BRDF_SAMPLES = 5;
+	int PATH_MAX_BUMPS = 5;
+	bool brdf_{ true }; 
+	bool brdf_deep_{ true };
 
 	int done_ = 0;
 	float f_, rendered_ = 0;

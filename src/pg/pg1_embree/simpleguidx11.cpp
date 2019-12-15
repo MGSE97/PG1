@@ -6,6 +6,9 @@ SimpleGuiDX11::SimpleGuiDX11( const int width, const int height)
 	width_ = width;
 	height_ = height;
 
+	accumulator = new float[width_ * height_ * 4];
+	n = 0.f;
+
 	Init();
 }
 
@@ -126,18 +129,46 @@ void SimpleGuiDX11::Producer()
 				const Color4f pixel = get_pixel( x, y, t );
 				const int offset = ( y * width_ + x ) * 4;
 
-				local_data[offset] = pixel.r;
+				/*local_data[offset] = pixel.r;
 				local_data[offset + 1] = pixel.g;
 				local_data[offset + 2] = pixel.b;
-				local_data[offset + 3] = pixel.a;
+				local_data[offset + 3] = pixel.a;*/
+
+				float n1 = n + 1, _1_n = 1.f / n1;
+
+				/*if (n == 0)
+				{
+					accumulator[offset + 0] = pixel.r;
+					accumulator[offset + 1] = pixel.g;
+					accumulator[offset + 2] = pixel.b;
+					accumulator[offset + 3] = pixel.a;
+				}
+				else
+				{
+					accumulator[offset + 0] += pixel.r;
+					accumulator[offset + 1] += pixel.g;
+					accumulator[offset + 2] += pixel.b;
+					accumulator[offset + 3] += pixel.a;
+				}*/
+
+				accumulator[offset + 0] = (pixel.r + accumulator[offset + 0] * n) * _1_n;
+				accumulator[offset + 1] = (pixel.g + accumulator[offset + 1] * n) * _1_n;
+				accumulator[offset + 2] = (pixel.b + accumulator[offset + 2] * n) * _1_n;
+				accumulator[offset + 3] = (pixel.a + accumulator[offset + 3] * n) * _1_n;
+
+
+				local_data[offset] = accumulator[offset];
+				local_data[offset + 1] = accumulator[offset + 1];
+				local_data[offset + 2] = accumulator[offset + 2];
+				local_data[offset + 3] = accumulator[offset + 3];
 
 				//if (save_)
 				//{
 					RGBQUAD color;
-					color.rgbBlue = pixel.b * 255.f;
-					color.rgbGreen = pixel.g * 255.f;
-					color.rgbRed = pixel.r * 255.f;
-					color.rgbReserved = pixel.a * 255.f;
+					color.rgbBlue = local_data[offset+2] * 255.f;
+					color.rgbGreen = local_data[offset+1] * 255.f;
+					color.rgbRed = local_data[offset] * 255.f;
+					color.rgbReserved = local_data[offset+3] * 255.f;
 					FreeImage_SetPixelColor(bitmap, x, height_ - y, &color);
 				//}
 			}
@@ -146,7 +177,8 @@ void SimpleGuiDX11::Producer()
 			current_ ++;
 
 		}
-
+		//n++;
+		n = min(n++, 10);
 		t0 = t1;
 
 		// write rendering results
@@ -159,7 +191,9 @@ void SimpleGuiDX11::Producer()
 				FreeImage_Save(FIF_PNG, bitmap, path, PNG_DEFAULT);
 			}
 			std::lock_guard<std::mutex> lock( tex_data_lock_ );
-			memcpy( tex_data_, local_data, width_ * height_ * 4 * sizeof( float ) );			
+			memcpy( tex_data_, local_data, width_ * height_ * 4 * sizeof( float ) );		
+			//n++;
+			//n = min(n++, 10);
 		} // lock release
 
 	}
