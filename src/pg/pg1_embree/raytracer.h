@@ -5,7 +5,6 @@
 #include "cubemap.h"
 #include "RTCRayHitModel.h"
 #include "RayCollision.h"
-#include "Color.h"
 #include "Sample.h"
 
 /*! \class Raytracer
@@ -16,6 +15,8 @@
 \date 2018
 */
 
+#define Color_Empty Vector3{0,0,0}
+enum SampleMode { CosWeighted, CosLobe };
 class Raytracer : public SimpleGuiDX11
 {
 public:
@@ -32,32 +33,26 @@ public:
 
 	void LoadScene( const std::string file_name );
 	bool check_shadow(RTCRayHitModel& hit, const float& t, const Vector3& lightVector);
-	Color get_material_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = Color_Empty);
+	Vector3 get_material_color(RTCRayHitModel& hit, const float& t, int bump = 0);
 
 	// Shaders Raytracer
-	Color shader_normal(RTCRayHitModel& hit, const float& t);
-	Color shader_lambert(RTCRayHitModel& hit, const float& t);
-	Color shader_phong(RTCRayHitModel& hit, const float& t);
-	Color shader_shadow(RTCRayHitModel& hit, const float& t);
-	Color shader_light(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_normal(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_lambert(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_phong(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_shadow(RTCRayHitModel& hit, const float& t);
+	Vector3 shader_light(RTCRayHitModel& hit, const float& t);
 	int shaderSelected = 4;
 	const char* shaderNames[5] = { "Normal", "Light", "Shadow", "Lambert", "Phong" };
-
-	// Shaders Pathtracer
-	Color shader_brdf_lambert(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
-	Color shader_brdf_phong(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
-	int shaderSelected2 = 1;
-	const char* shaderNames2[5] = { "Lambert", "Phong" };
-
+	
 	// Samping
-	Sample sample_hemisphere(RTCRayHitModel& hit, const float& t, Matrix3x3& world);
+	Sample sample_hemisphere(RTCRayHitModel& hit, const float& t, Matrix3x3& world, SampleMode mode);
+	Sample prepare_sample(RTCRayHitModel& hit, const float& t, Sample& sample, SampleMode mode);
 
-	Color shader_brdf_color(RTCRayHitModel& hit, const float& t, Color received = Color_Empty);
-	Color get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump = 0);
-	Color get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump = 0, Color received = { {0,0,0},{1,1,1} });
-	//void get_geometry_data(RTCRayHit& ray_hit, Vector3& normalVec, Coord2f& tex_coord, Material*& material);
+	// Ray Trace sample functions
+	Vector3 get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump = 0);
+	Vector3 path_trace(RTCRayHitModel& hit, const float& t, int bump = 0);
 
-	bool get_ray_color(RTCRayHit ray_hit, const float& t, Color& color, float& n1, int bump, Color(Raytracer::*shader)(RTCRayHitModel&, const float&, int bump, Color received), bool path = false);
+	bool ray_trace(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump, Vector3(Raytracer::*shader)(RTCRayHitModel&, const float&, int bump));
 	Vector3 get_pixel_internal(int x, int y, int t);
 	Color4f get_pixel( const int x, const int y, const float t = 0.0f ) override;
 	float get_random_float();
@@ -69,11 +64,30 @@ public:
 	RTCRayHitModel build_ray_model(const RTCRayHit& hit, const float& ior);
 	static bool has_colision(const RTCRayHit& hit);
 	static bool has_colision(const RTCRayHitModel& hit);
-	RayCollision get_collision_type(RTCRayHitModel& hit, const int bump, bool path = false);
+	RayCollision get_collision_type(RTCRayHitModel& hit, const int bump);
 	int get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int bump);
 
 	int Ui();
 
+	bool shadows_{ true };
+
+	float MAX_RAYS = 3628800.f;
+	int RAY_MAX_BUMPS = 10;
+	bool refr_{ true };
+	bool refl_{ true };
+
+	int RAY_MAP_BUMP = 0;
+	bool ray_map_{ false };
+
+	float SS_D = 0.25f, SS_MD = 0.25f;
+	int ss_ = 0;
+
+	int PATH_SAMPLES = 5;
+	int PATH_MAX_BUMPS = 5;
+	bool path_{ false }; 
+	bool path_deep_{ true };
+	
+	CubeMap* cubeMap_;
 private:
 	std::random_device rd_;
 	std::mt19937 e2_;
@@ -90,25 +104,7 @@ private:
 	Camera camera_;
 	Vector3 light_;
 	Vector3 lightPower_;
-	CubeMap* cubeMap_;
 
-	bool shadows_{ true };
-
-	float MAX_RAYS = 3628800.f;
-	int RAY_MAX_BUMPS = 4;
-	bool refr_{ true };
-	bool refl_{ true };
-
-	int RAY_MAP_BUMP = 0;
-	bool ray_map_{ false };
-
-	float SS_D = 0.1f, SS_MD = 0.25f;
-	int ss_ = 0;
-
-	int BRDF_SAMPLES = 5;
-	int PATH_MAX_BUMPS = 5;
-	bool brdf_{ true }; 
-	bool brdf_deep_{ true };
 
 	int done_ = 0;
 	float f_, rendered_ = 0;

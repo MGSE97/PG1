@@ -190,16 +190,10 @@ RTCRayHit Raytracer::prepare_ray_hit(const float t, RTCRay ray, const float& tne
 	return ray_hit;
 }
 
-Color Raytracer::get_material_color(RTCRayHitModel& hit, const float& t, int bump, Color received)
+Vector3 Raytracer::get_material_color(RTCRayHitModel& hit, const float& t, int bump)
 {
-	if (brdf_)
-		// (direct + indirect) * albedo / PI
-		//return (get_material_phong_color(hit, t) + get_material_brdf_color(hit, t)) / PI;
-		//return (get_material_shader_color(hit, t) / PI + 2*get_material_brdf_color(hit, t));
-		//return (get_material_shader_color(hit, t) + get_material_brdf_color(hit, t, bump)) / 2.f;
-		return get_material_shader_color(hit, t) + get_material_brdf_color(hit, t, bump, received);
-	//return get_material_phong_color(hit, t) * get_material_brdf_color(hit, t);
-	//return get_material_phong_color(hit, t)*(1.f - hit.R) +get_material_brdf_color(hit, t) * hit.R;
+	if (path_)
+		return get_material_shader_color(hit, t) + path_trace(hit, t, 0);
 	else
 		return get_material_shader_color(hit, t);
 }
@@ -239,12 +233,12 @@ bool Raytracer::check_shadow(RTCRayHitModel& hit, const float& t, const Vector3&
 	return !shadow.Lg(0.f);
 }
 
-Color Raytracer::shader_normal(RTCRayHitModel& hit, const float& t)
+Vector3 Raytracer::shader_normal(RTCRayHitModel& hit, const float& t)
 {
-	return { hit.normal * 0.5 + 0.5, { 0,0,0 } };
+	return hit.normal * 0.5 + 0.5;
 }
 
-Color Raytracer::shader_lambert(RTCRayHitModel& hit, const float& t)
+Vector3 Raytracer::shader_lambert(RTCRayHitModel& hit, const float& t)
 {
 	Vector3 light = light_;
 	light.Normalize();
@@ -252,14 +246,12 @@ Color Raytracer::shader_lambert(RTCRayHitModel& hit, const float& t)
 	if (check_shadow(hit, t, light))
 		return Color_Empty;
 
-	return {
+	return 
 		lightPower_.y * hit.colorDiffuse * hit.normal.DotProduct(light) +
-		hit.material->emission
-		, hit.material->emission
-	};
+		hit.material->emission;
 }
 
-Color Raytracer::shader_phong(RTCRayHitModel& hit, const float& t)
+Vector3 Raytracer::shader_phong(RTCRayHitModel& hit, const float& t)
 {
 	// Compute vectors
 	Vector3 light = light_;
@@ -275,31 +267,29 @@ Color Raytracer::shader_phong(RTCRayHitModel& hit, const float& t)
 
 	Vector3 power = lightPower_;
 
-	return {
+	return 
 		power.x * hit.material->ambient +
 		power.y * hit.colorDiffuse * max(hit.normal.DotProduct(light), 0.f) +
 		power.z * hit.material->specular * powf(max(reflected.DotProduct(cam), 0.f), hit.material->shininess) +
-		hit.material->emission
-		, hit.material->emission
-	};
+		hit.material->emission;
 }
 
-Color Raytracer::shader_shadow(RTCRayHitModel& hit, const float& t)
+Vector3 Raytracer::shader_shadow(RTCRayHitModel& hit, const float& t)
 {
 	Vector3 light = light_;
 	light.Normalize();
 
-	return check_shadow(hit, t, light) ? Color{ { 1, 0, 0 }, { 0,0,0 } } : Color_Empty;
+	return check_shadow(hit, t, light) ? Vector3{ 1, 0, 0 } : Color_Empty;
 }
 
-Color Raytracer::shader_light(RTCRayHitModel& hit, const float& t)
+Vector3 Raytracer::shader_light(RTCRayHitModel& hit, const float& t)
 {
 	// Compute vectors
 	Vector3 light = light_;
 	light.Normalize();
 
 	if (check_shadow(hit, t, light))
-		return { { 0,0,0 }, { 0,0,0 } };
+		return Color_Empty;
 
 	Vector3 reflected = light.Reflect(hit.normal);
 	reflected.Normalize();
@@ -308,17 +298,15 @@ Color Raytracer::shader_light(RTCRayHitModel& hit, const float& t)
 
 	Vector3 power = lightPower_;
 
-	return {
+	return 
 		power.y * max(hit.normal.DotProduct(light), 0.f) * Vector3 { 1, 1, 1 }  +
 		power.z * powf(max(reflected.DotProduct(cam), 0.f), hit.material->shininess) * Vector3 { 1, 1, 1 } +
-		hit.material->emission
-		, hit.material->emission
-	};
+		hit.material->emission;
 }
 
-Color Raytracer::get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump)
+Vector3 Raytracer::get_material_shader_color(RTCRayHitModel& hit, const float& t, int bump)
 {
-	Color color = Color_Empty;
+	Vector3 color = Color_Empty;
 
 	if (hit.material != nullptr)
 		switch (shaderSelected)
@@ -342,7 +330,7 @@ Color Raytracer::get_material_shader_color(RTCRayHitModel& hit, const float& t, 
 	/*auto s = shaders[shaderSelected];
 	color = s(hit, t);*/
 
-	return { SrgbTransform::srgbToLinear(color.RGB), color.Emission };
+	return SrgbTransform::srgbToLinear(color);
 }
 
 Matrix3x3 createCoordinateSystem(Vector3 N)
@@ -350,244 +338,158 @@ Matrix3x3 createCoordinateSystem(Vector3 N)
 	Vector3 o1 = N.Orthogonal().Normalize();
 	Vector3 o2 = o1.CrossProduct(N).Normalize();
 	return { o2, o1, N };
-
-	//// https://www.scratchapixel.com/lessons/3d-basic-rendering/global-illumination-path-tracing/global-illumination-path-tracing-practical-implementation
-	//Vector3 Nt, Nb;
-	//if (std::fabs(N.x) > std::fabs(N.y))
-	//	Nt = Vector3(N.z, 0, -N.x);
-	//else
-	//	Nt = Vector3(0, -N.z, N.y);
-	//Nb = N.CrossProduct(Nt);
-	//Nt.Normalize();
-	//Nb.Normalize();
-	////return Matrix3x3(Nt, N, Nb);
-	//return Matrix3x3(Nt, Nb, N);
 }
 
-Color Raytracer::shader_brdf_lambert(RTCRayHitModel& hit, const float& t, Color received)
-{
-
-	auto omegaIN = max(hit.dir.DotProduct(hit.normal), hit.dir.DotProduct(-hit.normal));
-
-	/*Vector3 light = light_;
-	light.Normalize();*/
-
-	// I = 1/(d^2)
-	//float d = hit.core.ray.tfar, d2 = min(2.f / d, 0.5f);
-	//float d = (hit.hit - hit.from).L2Norm(), d2 = min(2.f / d, 0.5f);//1.f / (M_4PI * d); //min(2 / (d), 0.5f);
-	/*float d = (hit.hit - hit.from).L2Norm() / 16.f, d2 = min(1.f / d, 0.5f);
-	received.Emission = received.Emission * d2;
-	received.RGB = received.RGB * d2;*/
-
-	/*received.Emission *= 0.5f;
-	received.RGB *= 0.5f;*/
-	if (hit.material->emission.Lg(0.f))
-		return { hit.material->emission * received.Emission, hit.material->diffuse * M_1_PI * omegaIN * received.Emission };
-		//return { hit.material->diffuse + received.RGB , hit.material->emission + received.Emission } * omegaIN;*/
-
-	return { received.Emission, hit.material->diffuse * M_1_PI * omegaIN * received.Emission };
-	/*return Color{ hit.material->diffuse * (hit.material->emission + received.Emission), hit.material->emission + received.Emission } * M_1_PI * omegaIN;
-	return Color{ hit.material->diffuse * M_1_PI + received.RGB, hit.material->emission * M_1_PI + received.Emission } * omegaIN;*/
-
-	/*auto power = hit.material->emission * omega_o + received.Emission;
-	return { {hit.colorDiffuse * omegaIN * M_1_PI * power}, power };
-	//return { {hit.colorDiffuse * omegaIN * M_1_PI * power + received.RGB * omegaIN}, power };
-
-	//return { received.Emission, hit.material->emission + received.Emission };
-	//auto colorPower = hit.material->emission * omegaIN + received.Emission;
-	auto l = check_shadow(hit, t, light_) ? 0.f : lightPower_.y * max(hit.normal.DotProduct(light), 0.f);
-	auto colorPower = (Vector3{ l,l,l } + hit.material->emission) * omegaIN + received.Emission;
-	auto color = hit.material->diffuse * colorPower + received.RGB * received.Emission;
-	return { color , colorPower };*/
-}
-
-Color Raytracer::shader_brdf_phong(RTCRayHitModel& hit, const float& t, Color received)
-{
-	auto part = get_random_float(), pd =hit.colorDiffuse.LargestValue(), ps = hit.colorSpecular.LargestValue();
-	Color color;
-	if (part * (pd + ps) < ps)
-		color = shader_brdf_lambert(hit, t, received);
-	else
-		color = Color_Empty * powf(hit.reflected.DotProduct(-hit.dir), hit.material->shininess);
-	return color;
-}
-
-Sample Raytracer::sample_hemisphere(RTCRayHitModel& hit, const float& t, Matrix3x3& world)
+Sample Raytracer::sample_hemisphere(RTCRayHitModel& hit, const float& t, Matrix3x3& world, SampleMode mode)
 {
 	Sample sample = Sample();
-	//sample.PDF = M_1_2PI;
 
 	float	ru = get_random_float(),
-			rv = get_random_float();
-	float sinTheta = sqrtf(1 - rv);
-	float phi = M_2PI * ru;
+			rv = get_random_float(),
+			phi = M_2PI * ru,
+			sinTheta = 0;
+
+	switch (mode)
+	{
+	case CosWeighted:
+		sinTheta = sqrtf(1 - rv);
+		break;
+	case CosLobe:
+		sinTheta = sqrtf(1 - powf(rv, 2.f / (hit.material->shininess + 1)));
+		break;
+	}
+
 	float x = sinTheta * cosf(phi);
 	float y = sinTheta * sinf(phi);
 
 	sample.Dir = world * Vector3(x, y, sqrtf(rv));
-	sample.OmegaIN = hit.normal.DotProduct(sample.Dir);
+	prepare_sample(hit, t, sample, mode);
+
+	switch (mode)
+	{
+	case CosWeighted:
+		sample.PDF = sample.OmegaIN * M_1_PI;
+		break;
+	case CosLobe:
+		sample.PDF = ((hit.material->shininess + 2.f) * powf(sample.Dir.DotProduct(sample.OmegaR), hit.material->shininess)) * M_1_2PI;
+		break;
+	}
+	
+
+	return sample;
+}
+
+Sample Raytracer::prepare_sample(RTCRayHitModel& hit, const float& t, Sample& sample, SampleMode mode)
+{
+	switch (mode)
+	{
+		case CosWeighted:
+			sample.OmegaIN = hit.normal.DotProduct(sample.Dir);
+			break;
+		case CosLobe:
+			sample.OmegaIN = sample.OmegaR.DotProduct(sample.Dir);
+			break;
+	}
+
 	if (sample.OmegaIN < 0)
 	{
 		sample.Dir = -sample.Dir;
 		sample.OmegaIN = -sample.OmegaIN;
 	}
-
-	sample.PDF = sample.OmegaIN * M_1_PI;
 	sample.Ray = cast_ray(hit.hit, sample.Dir, t);
-	sample.colision = has_colision(sample.Ray);
-	/*if (sample.colision)
-	{
-		sample.Model = build_ray_model(sample.Ray, hit.n1);
-		sample.OmegaI = -sample.Model.dir;
-		sample.OmegaIN = sample.OmegaI.DotProduct(sample.Model.normal);
-	}*/
-
+	sample.Colision = has_colision(sample.Ray);
 	return sample;
 }
 
-Color Raytracer::shader_brdf_color(RTCRayHitModel& hit, const float& t, Color received)
+Vector3 Raytracer::path_trace(RTCRayHitModel& hit, const float& t, int bump)
 {
-	return shader_brdf_lambert(hit, t, received);
-}
+	Sample sample;
+	Vector3 fr;
+	float distance = hit.core.ray.tfar;
 
-Color Raytracer::get_material_brdf_color(RTCRayHitModel& hit, const float& t, int bump, Color received)
-{
 	// Last
-	float rho = get_random_float();
-	if (bump > PATH_MAX_BUMPS || rho >= hit.rouletteRho)
+	if (bump > PATH_MAX_BUMPS || (hit.roulette && get_random_float() >= hit.rouletteRho))
 		return Color_Empty;
-		//return { hit.colorDiffuse, {0,0,0} };// Color_Empty;
+		//return hit.colorDiffuse;
 
 	// Emissive
-	Color color = { hit.material->emission, hit.material->emission }; // C, T
-	if (hit.material->emission.Lg(0.f))
+	Vector3 color = hit.material->emission; 
+	if (color.Lg(0.f))
 		return color;
 
 	// Normal
 	Matrix3x3 world = createCoordinateSystem(hit.normal);
-	int samples = brdf_deep_ ? BRDF_SAMPLES : (BRDF_SAMPLES / (bump + 1) + 1);
+	int samples = path_deep_ ? PATH_SAMPLES : (PATH_SAMPLES / (bump + 1) + 1);
 	for (int i = 0, j; i < samples; i++)
 	{
-		//j = 0;
-		auto sample = sample_hemisphere(hit, t, world);
-		/*while (!sample.colision && j < BRDF_SAMPLES / 2)
+		if (hit.material->isMirror() || hit.material->isTransparent())
 		{
-			sample = sample_hemisphere(hit, t, world);
-			j++;
-		}*/
-		
-		if (!sample.colision)
-		{
-			color.RGB += cubeMap_->get_texel(sample.Dir);
-			//color.Emission += cubeMap_->get_texel(sample.Dir);
-			continue;
+			hit.calc_fresnel();
+			if (hit.material->isTransparent())
+			{
+				// Transparent object
+				// Refraction
+				sample.Dir = hit.refracted;
+				sample.Ray = cast_ray(hit.hit, sample.Dir, t);
+				sample.Colision = has_colision(sample.Ray);
+
+				if (!sample.Colision)
+				{
+					hit.colorRefracted = cubeMap_->get_texel(sample.Dir);
+				}
+				else
+				{
+					distance = hit.n1 == IOR_AIR ? 0 : distance;
+					// Recursive tracing
+					sample.Model = build_ray_model(sample.Ray, hit.n2);
+					Vector3 result = path_trace(sample.Model, t, bump + 1);
+					hit.colorRefracted = result;
+				}
+			}
+			else
+				distance = -1;
+			
+			// Reflect ray
+			sample.Dir = hit.reflected;
+			prepare_sample(hit, t, sample, CosWeighted);
+
+			if (!sample.Colision)
+				hit.colorReflected = cubeMap_->get_texel(sample.Dir);
+			else
+			{
+				// Recursive tracing
+				sample.Model = build_ray_model(sample.Ray, hit.n1);
+				Vector3 result = path_trace(sample.Model, t, bump + 1);
+				hit.colorReflected = result;
+			}
+
+			color += hit.calc_result_color(distance);
+			//color += hit.colorRefracted;
 		}
+		else
+		{
+			// Lambert
+			sample = sample_hemisphere(hit, t, world, CosWeighted);
 
-		Color result;
-		get_ray_color(sample.Ray, t, result, hit.n1, bump + 1, &Raytracer::get_material_brdf_color, true);
-		auto fr = hit.colorDiffuse * M_1_PI;
-		//auto fr = sample.Model.rouletteRho * M_1_PI;
+			fr = hit.colorDiffuse * M_1_PI;
 
-		Vector3 tmp = result.RGB * fr * sample.OmegaIN * 1.f / sample.PDF;
-		//Vector3 tmpe = result.Emission * fr * sample.OmegaIN * 1.f / sample.PDF;
-		//Vector3 tmp = result.RGB * fr * 1.f / (sample.PDF);
-		color.RGB += tmp;
-		//color.Emission += tmpe;
+			if (!sample.Colision)
+				hit.colorRefracted = cubeMap_->get_texel(sample.Dir);
+			else
+			{
+				// Recursive tracing
+				sample.Model = build_ray_model(sample.Ray, hit.n1);
+				Vector3 result = path_trace(sample.Model, t, bump + 1);
+				hit.colorRefracted = result * fr * sample.OmegaIN * 1.f / sample.PDF;
+			}
+
+			color += hit.colorRefracted;
+		}
 	}
 
-	return color / (samples * hit.rouletteRho);
-
-
-	//if (bump >= (brdf_deep_ ? PATH_MAX_BUMPS : 1))
-	//	//return { hit.material->diffuse + hit.material->emission, hit.material->emission };
-	//	return shader_brdf_color(hit, t, received);
-	////return get_material_shader_color(hit, t);
-	//bump++;
-
-	//// Sample half sphere
-	//int samples = BRDF_SAMPLES;//pow(10, BRDF_SAMPLES_EXP);
-	//float pdf = M_1_2PI;
-	//Color color = Color_Empty;
-	//Matrix3x3 world = createCoordinateSystem(hit.normal.DotPrqeoduct(-hit.dir) < 0 ? -hit.normal : hit.normal);
-	//for (int i = 0; i < samples; i++)
-	//{
-	//	float	ru = get_random_float(),
-	//		rv = get_random_float();
-	//	float sinTheta = sqrtf(1 - ru * ru);
-	//	float phi = M_2PI * rv;vv
-	//	float x = sinTheta * cosf(phi);
-	//	float z = sinTheta * sinf(phi);
-
-	//	auto dir = world * Vector3(x, ru, z);
-
-	//	auto ray = cast_ray(hit.hit, dir, t, 0.0001f);
-	//	Color result = Color_Empty;
-	//	get_ray_color(ray, t, result, hit.n1, bump, &Raytracer::get_material_brdf_color, true);
-	//	/*if (has_colision(ray))
-	//	{
-	//		auto model = build_ray_model(ray, hit.material->ior);
-	//		if (model.material != nullptr)
-	//			//result = get_material_brdf_color(model, t, bump);
-	//	}*/
-	//	color += result / pdf;// *ru / pdf;
-	//}
-	//color /= (float)samples;
-	////return (Color(hit.material->diffuse + hit.material->emission, hit.material->emission ) *color) / PI;
-	//color = shader_brdf_color(hit, t, color);
-	//if (get_random_float() > hit.rouletteRho)
-	//	color *= 1.f / hit.rouletteRho;
-	//return color * M_1_PI;
-	////color.RGB = color.RGB + color.Emission;
-	////return (color) / PI;
-
-
-	//// Sample half sphere
-	//int ax_splits = floor(powf(pow(10, BRDF_SAMPLES_EXP), 1.f / 2.f));
-	//float ax_i = 1.f / (float)ax_splits, pdf = 1 / (2*PI);
-	//Vector3 color(0, 0, 0);
-
-	//Matrix3x3 world = createCoordinateSystem(hit.normal);
-	//for(float u = 0.f; u <= 1.f; u+=ax_i)
-	//	for (float v = 0.f; v <= 1.f; v+=ax_i)
-	//	{
-	//		float ru = get_random_float(),
-	//			rv = get_random_float();
-	//		/*float theta = 2 * PI * ru;
-	//		float phi = acos(2*rv - 1.f);
-	//		//float theta = PI * u;
-	//		//float phi = 2 * v * PI - PI;//acos(2*v - 1.f);
-	//		float x = sin(theta) * cos(phi);
-	//		float y = sin(theta) * sin(phi);
-	//		float z = cos(theta);*/
-	//		float sinTheta = sqrtf(1 - ru * ru);
-	//		float phi = 2 * M_PI * rv;
-	//		float x = sinTheta * cosf(phi);
-	//		float z = sinTheta * sinf(phi);
-
-	//		auto dir = world * Vector3(x, ru, z);
-	//		//auto dir = world * Vector3(x, y, z);
-
-	//		auto ray = cast_ray(hit.hit, dir, t);
-	//		Vector3 result{ 0,0,0 };
-	//		if (has_colision(ray))
-	//		{
-	//			auto model = build_ray_model(ray, hit.material->ior);
-	//			if (model.material != nullptr)
-	//				result = shader_phong(model, t);
-	//				//result = model.material->emission; // get_material_emission_color(hit, t, 0);
-	//		}
-	//		//if (!get_ray_color(ray, t, result, hit.n1, 0, &Raytracer::get_material_emission_color), true)
-	//		//if (!get_ray_color(ray, t, result, hit.n1, -1, &Raytracer::get_material_brdf_phong_color))
-	//			//result = cubeMap_->get_texel(Vector3(ray.ray.dir_x, ray.ray.dir_y, ray.ray.dir_z));
-	//			//result = { 1,1,1 };
-	//			//result = { 0,0,0 };
-	//		//get_ray_color(ray, t, result, hit.n1, bump, &Raytracer::get_material_brdf_phong_color);
-	//		color += result;// * u / pdf;
-	//	}
-	//return (get_material_shader_color(hit, t) + color / pow(ax_splits, 2))/PI;
-
-	///*auto ray = cast_ray(hit.hit, hit.hit + hit.normal, t);
-	//return get_material_brdf_ray_color(ray, t, hit.material->ior);*/
+	if(hit.roulette)
+		return color / (samples * hit.rouletteRho);
+	return color / samples;
 }
 
 RTCRay Raytracer::generate_ray(const Vector3& hit, const Vector3& direction)
@@ -642,10 +544,10 @@ bool Raytracer::has_colision(const RTCRayHitModel& hit)
 	return hit.material->shader != 4;
 }
 
-RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump, bool path)
+RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump)
 {
 	RayCollision collision = Diffuse;
-	if (bump <= (path ? PATH_MAX_BUMPS : RAY_MAX_BUMPS))
+	if (bump <= RAY_MAX_BUMPS)
 	{
 		if (refl_
 			&& refr_
@@ -670,11 +572,7 @@ RayCollision Raytracer::get_collision_type(RTCRayHitModel& hit, const int bump, 
 			hit.calc_fresnel();
 			collision = Refraction;
 		}
-		/*else if (brdf_)
-			hit.calc_fresnel();*/
 	}
-	/*else if(brdf_)
-		hit.calc_fresnel();*/
 
 	if (ray_map_ && bump == RAY_MAP_BUMP)
 		collision = RayMap;
@@ -716,7 +614,7 @@ int Raytracer::get_ray_count(RTCRayHit ray_hit, const float& t, float& n1, int b
 	return count;
 }
 
-bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Color& color, float& n1, int bump, Color(Raytracer::* sample_func)(RTCRayHitModel&, const float&, int bump, Color received), bool path)
+bool Raytracer::ray_trace(RTCRayHit ray_hit, const float& t, Vector3& color, float& n1, int bump, Vector3(Raytracer::* sample_func)(RTCRayHitModel&, const float&, int bump))
 {
 	// intersected ray with the scene
 
@@ -724,40 +622,40 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Color& color, f
 	{
 		auto data = build_ray_model(ray_hit, n1);
 		bump++;
-		float distance = (data.hit - data.from).L2Norm(); //data.core.ray.tfar;
-		switch (get_collision_type(data, bump, path))
+		float distance = data.core.ray.tfar;
+		switch (get_collision_type(data, bump))
 		{
 		case Diffuse:
-			color = (*this.*sample_func)(data, t, path ? bump : 0, Color_Empty);
+			color = (*this.*sample_func)(data, t, bump);
 			break;
 
 		case All:
 			// Refraction
-			if (!get_ray_color(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump, sample_func, path))
-				data.colorRefracted = cubeMap_->get_texel_color(data.refracted);
-			else distance = 0;
+			if (!ray_trace(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump, sample_func))
+				data.colorRefracted = cubeMap_->get_texel(data.refracted);
+			else distance = data.n1 == IOR_AIR ? 0 : distance;
 
 			// Reflection
-			if (!get_ray_color(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump, sample_func, path))
-				data.colorReflected = cubeMap_->get_texel_color(data.reflected);
+			if (!ray_trace(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump, sample_func))
+				data.colorReflected = cubeMap_->get_texel(data.reflected);
 
 			// Result
 			color = data.calc_result_color(distance);
 			break;
 
 		case Refraction:
-			if (!get_ray_color(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump, sample_func), path)
-				data.colorRefracted = cubeMap_->get_texel_color(data.refracted);
-			else distance = 0;
+			if (!ray_trace(cast_ray(data.hit, data.refracted, t), t, data.colorRefracted, data.n2, bump, sample_func))
+				data.colorRefracted = cubeMap_->get_texel(data.refracted);
+			else distance = data.n1 == IOR_AIR ? 0 : distance;
 			data.colorReflected = Color_Empty;
 			color = data.calc_result_color(distance);
 			break;
 
 		case Reflection:
-			if (!get_ray_color(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump, sample_func, path))
-				data.colorReflected = cubeMap_->get_texel_color(data.reflected);
+			if (!ray_trace(cast_ray(data.hit, data.reflected, t), t, data.colorReflected, data.n1, bump, sample_func))
+				data.colorReflected = cubeMap_->get_texel(data.reflected);
 			if (data.R != 0)
-				data.colorRefracted = (*this.*sample_func)(data, t, path ? bump : 0, data.colorReflected);
+				data.colorRefracted = (*this.*sample_func)(data, t, bump);
 			else
 				data.colorRefracted = Color_Empty;
 			color = data.calc_result_color(-1);
@@ -767,7 +665,7 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Color& color, f
 			float count = (float)get_ray_count(ray_hit, t, n1, bump - 1) + 1;
 			count = count / (float)pow(RAY_MAX_BUMPS, 1 + refl_ + refr_);
 			// cout, refracted, reflected
-			color = { {count, data.R, 1.f - data.R}, {0,0,0} };
+			color = {count, data.R, 1.f - data.R};
 			break;
 		}
 		return true;
@@ -778,13 +676,13 @@ bool Raytracer::get_ray_color(RTCRayHit ray_hit, const float& t, Color& color, f
 
 Vector3 Raytracer::get_pixel_internal(const int x, const int y, const int t)
 {
-	Color color{ { 0, 0, 0 }, { 0,0,0 } };
+	Vector3 color{ 0, 0, 0 };
 	auto ray = cast_ray(camera_.GenerateRay(x, y), t);
 	auto ior = IOR_AIR;
-	if (!get_ray_color(ray, t, color, ior, 0, &Raytracer::get_material_color))
+	if (!ray_trace(ray, t, color, ior, 0, &Raytracer::get_material_color))
 		// Background
-		color.RGB = cubeMap_->get_texel(Vector3(ray.ray.dir_x, ray.ray.dir_y, ray.ray.dir_z));
-	return color.RGB;
+		color = cubeMap_->get_texel(Vector3(ray.ray.dir_x, ray.ray.dir_y, ray.ray.dir_z));
+	return color;
 }
 
 Color4f Raytracer::get_pixel(const int x, const int y, const float t)
@@ -802,13 +700,14 @@ Color4f Raytracer::get_pixel(const int x, const int y, const float t)
 			{
 				const float nx = get_random_ss_float(), ny = get_random_ss_float();
 				const float dx = i * (SS_MD / ss_) + nx / ss_, dy = j * (SS_MD / ss_) + (ny / ss_);
+				//const float dx = nx, dy = ny;
 				//const float dx = i * 0.25f, dy = j * 0.25f;
 				color += get_pixel_internal(x + dx, y + dy, t);
 				count++;
 			}
 		color /= (float)count;
 	}
-	color = SrgbTransform::linearToSrgb(SrgbTransform::tonemap(color));
+
 
 	if (debug_)
 	{
@@ -857,10 +756,23 @@ int Raytracer::Ui()
 	ImGui::Text("Time = Done: %.2f s \t Left: %.2f s", lastFrame_.count(), (lastFrame_.count() / current()) * (width() - current()));
 	//ImGui::Text("Time = %.2f", lastFrame_.count());
 	ImGui::Text("Surfaces = %d", surfaces_.size());
-	ImGui::Text("Materials = %d", materials_.size());
+	ImGui::SameLine(); ImGui::Text("Materials = %d", materials_.size());
 	ImGui::Separator();
 	ImGui::Checkbox("Vsync", &vsync_);
-	ImGui::Checkbox("Save", &save_);
+	ImGui::SameLine(); ImGui::Checkbox("Save", &save_);
+	ImGui::Checkbox("Accumulator", &accumulator_); 
+	ImGui::SameLine(); ImGui::Text("Samples = %d", (int)n);
+	ImGui::SameLine(); if (ImGui::Button("Clear Accumulator"))
+	{
+		n = 0;
+		for (int y = 0; y < height(); ++y)
+			for (int x = 0; x < width(); ++x)
+			{
+				const int offset = (y * width() + x) * 4;
+				for (int c = 0; c < 4; c++)
+					accumulator[offset + c] = 0.f;
+			}
+	}
 	ImGui::Separator();
 	//ImGui::Checkbox("Debug", &debug_);
 	ImGui::SliderInt("Super Sampling", &ss_, 0, 9);
@@ -874,17 +786,17 @@ int Raytracer::Ui()
 		ImGui::SliderFloat("Cubemap B", &cubeMap_->color.z, 0.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f    
 	}
 	ImGui::Separator();
-	ImGui::SliderInt("Ray depth", &RAY_MAX_BUMPS, 0, 20);
-	ImGui::Checkbox("Ray map", &ray_map_);
+	ImGui::SliderInt("Ray tracing depth", &RAY_MAX_BUMPS, 0, 20);
+	ImGui::Checkbox("Ray tracing map", &ray_map_);
 	if (ray_map_)
-		ImGui::SliderInt("Ray map depth", &RAY_MAP_BUMP, 0, RAY_MAX_BUMPS);
+		ImGui::SliderInt("Ray tracing map depth", &RAY_MAP_BUMP, 0, RAY_MAX_BUMPS);
 	ImGui::Checkbox("Reflection", &refl_);
-	ImGui::Checkbox("Refraction", &refr_);
+	ImGui::SameLine(); ImGui::Checkbox("Refraction", &refr_);
 	ImGui::Separator();
-	ImGui::Checkbox("BRDF", &brdf_);
-	ImGui::Checkbox("BRDF Deep", &brdf_deep_);
-	ImGui::SliderInt("Path depth", &PATH_MAX_BUMPS, 0, 20);
-	ImGui::SliderInt("BRDF Samples", &BRDF_SAMPLES, 1, 1000);
+	ImGui::Checkbox("Path tracing", &path_);
+	ImGui::SameLine(); ImGui::Checkbox("Deep path tracing", &path_deep_);
+	ImGui::SliderInt("Path tracing depth", &PATH_MAX_BUMPS, 0, 20);
+	ImGui::SliderInt("Path tracing samples", &PATH_SAMPLES, 1, 10);
 	ImGui::Separator();
 
 	//ImGui::Checkbox( "Demo Window", &show_demo_window ); // Edit bools storing our window open/close state
@@ -907,17 +819,6 @@ int Raytracer::Ui()
 	// Buttons return true when clicked (most widgets return true when edited/activated)
 	if (ImGui::Button("Update Target"))
 		camera_.Update();
-	if (ImGui::Button("Clear Accumulator"))
-	{
-		n = 0;
-		for (int y = 0; y < height(); ++y)
-			for (int x = 0; x < width(); ++x)
-			{
-				const int offset = (y * width() + x) * 4;
-				for(int c = 0; c < 4; c++)
-					accumulator[offset + c] = 0.f;
-			}
-	}
 	//counter++;
 /*ImGui::SameLine();
 ImGui::Text( "counter = %d", counter );*/

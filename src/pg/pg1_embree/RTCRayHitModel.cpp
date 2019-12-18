@@ -14,6 +14,7 @@ RTCRayHitModel::RTCRayHitModel(const RTCRayHit& ray_hit, const RTCScene* ray_sce
 	dir = Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
 	dir.Normalize();
 	hit = from + ray_hit.ray.tfar * Vector3(ray_hit.ray.dir_x, ray_hit.ray.dir_y, ray_hit.ray.dir_z);
+	roulette = false;
 	if(core.hit.geomID != RTC_INVALID_GEOMETRY_ID)
 		load_geometry_data();
 }
@@ -38,6 +39,7 @@ void RTCRayHitModel::load_geometry_data()
 	load_material();
 
 	rouletteRho = colorDiffuse.LargestValue();
+	roulette = !(material->isMirror() || material->isTransparent());
 }
 
 void RTCRayHitModel::load_material()
@@ -107,14 +109,10 @@ void RTCRayHitModel::calc_fresnel()
 	}
 }
 
-Color RTCRayHitModel::calc_result_color(const float& distance)
+Vector3 RTCRayHitModel::calc_result_color(const float& distance)
 {
-	Color color = (colorRefracted * (1.f - R) + colorReflected * R);
+	Vector3 color = (colorRefracted * (1.f - R) + colorReflected * R);
 	if (distance >= 0)
-	{
-		Vector3 exp = material->emission.Exp(-distance);
-		color = color * Color{ exp, exp };
-	}
-		//color = color * material->attenuation.Exp(-distance);
+		color = color * material->attenuation.Exp(-distance);
 	return color;
 }

@@ -25,6 +25,5 @@ class CubeMap
 		CubeMap(const Vector3 color = { 1,1,1 });
 	
 		Vector3 get_texel(Vector3 direction);
-		Color get_texel_color(Vector3 direction);
 };
 

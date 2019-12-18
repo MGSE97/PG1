@@ -11,7 +11,10 @@ public:
 	SimpleGuiDX11( const int width, const int height );	
 	~SimpleGuiDX11();		
 	
-	int MainLoop();	
+	int MainLoop();
+
+	//int accumulator_n_{ 10 };
+	bool accumulator_{ true };
 
 protected:
 	int Init();

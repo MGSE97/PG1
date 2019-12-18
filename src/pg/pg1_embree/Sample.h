@@ -10,7 +10,7 @@ public:
 	RTCRayHitModel Model;
 	float PDF;
 	Vector3 Dir;
-	Vector3 OmegaI;
+	Vector3 OmegaR;
 	float OmegaIN;
-	bool colision;
+	bool Colision;
 };

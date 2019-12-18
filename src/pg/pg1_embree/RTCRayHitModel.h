@@ -3,7 +3,6 @@
 #include "structs.h"
 #include "material.h"
 #include "simpleguidx11.h"
-#include "Color.h"
 
 class RTCRayHitModel
 {
@@ -18,7 +17,7 @@ public:
 	void calc_fresnel();
 	void load_material();
 
-	Color calc_result_color(const float& distance);
+	Vector3 calc_result_color(const float& distance);
 
 	RTCRayHit core{};
 	const RTCScene* scene{};
@@ -37,10 +36,11 @@ public:
 	float n1;
 	float n2;
 
-	Color colorRefracted;
-	Color colorReflected;
+	Vector3 colorRefracted;
+	Vector3 colorReflected;
 
 	Vector3 colorDiffuse;
 	Vector3 colorSpecular;
 	float rouletteRho;
+	bool roulette;
 };

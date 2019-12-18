@@ -217,6 +217,16 @@ int LoadMTL( const char * file_name, const char * path, std::vector<Material *> 
 	}
 	material = NULL;
 
+	for(auto material: materials)
+	{
+		// Convert emission to attenuation
+		if (material->isTransparent())
+		{
+			material->attenuation = material->emission;
+			material->emission = { 0,0,0 };
+		}
+	}
+
 	//memcpy( buffer, buffer_backup, file_size + 1 ); // obnovení bufferu po èinnosti strtok
 	SAFE_DELETE_ARRAY( buffer_backup );
 	SAFE_DELETE_ARRAY( buffer );	

@@ -187,8 +187,16 @@ int tutorial_3( const std::string file_name, const char * config )
 		Vector3( 175, -140, 130 ), Vector3( 0, 0, 35 ), config );*/
 	/*Raytracer raytracer(800, 600, deg2rad(45.0),
 		Vector3(175, -140, 130), Vector3(0, 0, 35), config);*/
-	Raytracer raytracer(1920/2, 1080/2, deg2rad(45.0),
-		Vector3(175, -140, 130), Vector3(0, 0, 35), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, nullptr, config);
+	/*Raytracer raytracer(1920/2, 1080/2, deg2rad(45.0),
+		Vector3(175, -140, 130), Vector3(0, 0, 35), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, &Vector3{ 1,1,1 }, config);*/
+	Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(45.0),
+		Vector3(-125, -109, 24), Vector3(0, 0, 35), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, &Vector3{ 1,1,1 }, config);
+	raytracer.RAY_MAX_BUMPS = 10;
+	raytracer.path_ = false;
+	raytracer.cubeMap_->returnTexture = true;
+	raytracer.ss_ = true;
+	raytracer.accumulator_ = false;
+
 	raytracer.LoadScene( file_name );
 	raytracer.MainLoop();
 
@@ -204,7 +212,13 @@ int tutorial_4(const std::string file_name, const char * config)
 	/*Raytracer raytracer(640, 480, deg2rad(45.0),
 		Vector3(2, -3, 0), Vector3(0, 0, 0), config);*/
 	Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(45.0),
-		Vector3(2, -3, 0), Vector3(0, 0, 0), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, nullptr, config);
+		Vector3(2, -3, 0), Vector3(0, 0, 0), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, &Vector3{ 1,1,1 }, config);
+
+	raytracer.RAY_MAX_BUMPS = 10;
+	raytracer.path_ = false;
+	raytracer.cubeMap_->returnTexture = true;
+	raytracer.accumulator_ = false;
+
 	raytracer.LoadScene(file_name);
 	raytracer.MainLoop();
 
@@ -218,6 +232,14 @@ int tutorial_5(const std::string file_name, const char* config)
 	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 10,-15,10 }, &Vector3{ 1,1,1 }, &Vector3(0,0,0), config);
 	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 5,5,10 }, &Vector3{ 1,1,1 }, &Vector3(0, 0, 0), config);
 	Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 157,-157,105 }, &Vector3{ 0,0,0 }, &Vector3(0, 0, 0), config);
+
+	raytracer.RAY_MAX_BUMPS = 0;
+	raytracer.PATH_SAMPLES = 2;
+	raytracer.ss_ = 1;
+	raytracer.path_ = true;
+	raytracer.path_deep_ = false;
+	raytracer.cubeMap_->returnTexture = false;
+
 	//Raytracer raytracer(1920, 1080, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 157,-157,105 }, &Vector3{ 1,1,1 }, &Vector3(0, 0, 0), config);
 	//Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3(0,0,0), config);
 	raytracer.LoadScene(file_name);
@@ -230,7 +252,16 @@ int tutorial_5(const std::string file_name, const char* config)
 int tutorial_6(const std::string file_name, const char* config)
 {
 	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3(0, 0, 0), config);
-	Raytracer raytracer(1920 / 2, 1080 / 2, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 200,300,400 }, &Vector3{ 1,1,1 }, &Vector3(0,0,0), config);
+	Raytracer raytracer(1920/2, 1080/2, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250), &Vector3{ 157,-157,105 }, &Vector3{ 0,0,0 }, &Vector3(0,0,0), config);
+
+	raytracer.RAY_MAX_BUMPS = 0;
+	raytracer.PATH_SAMPLES = 6;
+	raytracer.ss_ = 1;
+	raytracer.path_ = true;
+	raytracer.path_deep_ = false;
+	raytracer.cubeMap_->returnTexture = false;
+
+
 	raytracer.LoadScene(file_name);
 	raytracer.MainLoop();
 

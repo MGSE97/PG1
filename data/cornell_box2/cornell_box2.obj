@@ -1699,7 +1699,7 @@ vt 0.968750 -0.000000 0.000000
 
 o Sphere001
 g Sphere001
-usemtl white_lambert
+usemtl clear_glass
 s 1
 f 29/33/10 30/34/11 31/35/12 
 f 29/36/10 31/35/12 32/37/13 
@@ -4198,7 +4198,7 @@ vt 0.968750 -0.000000 0.000000
 
 o Sphere002
 g Sphere002
-usemtl clear_glass
+usemtl white_lambert
 s 1
 f 511/592/492 512/593/493 513/594/494 
 f 511/595/492 513/594/494 514/596/495 
